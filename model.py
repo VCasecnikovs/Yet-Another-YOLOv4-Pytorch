@@ -293,7 +293,6 @@ class Head(nn.Module):
         input1, input2, input3 = input
 
         x1 = self.ho1(input1)
-        print(input1.shape, input2.shape)
         x2 = self.hp2(input2, input1)
         x3 = self.ho2(x2)
 
@@ -302,11 +301,91 @@ class Head(nn.Module):
 
         return (x1, x3, x5)
         
+class YOLOLayer(nn.Module):
+    """Detection layer taken and modified from https://github.com/eriklindernoren/PyTorch-YOLOv3"""
+
+    def __init__(self, anchors, num_classes, img_dim=416):
+        super(YOLOLayer, self).__init__()
+        self.anchors = anchors
+        self.num_anchors = len(anchors)
+        self.num_classes = num_classes
+        self.ignore_thres = 0.5
+        self.mse_loss = nn.MSELoss()
+        self.bce_loss = nn.BCELoss()
+        self.obj_scale = 1
+        self.noobj_scale = 100
+        self.metrics = {}
+        self.img_dim = img_dim
+        self.grid_size = 0  # grid size
+
+    def compute_grid_offsets(self, grid_size, cuda=True):
+        self.grid_size = grid_size
+        g = self.grid_size
+        FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
+        self.stride = self.img_dim / self.grid_size
+        # Calculate offsets for each grid
+        self.grid_x = torch.arange(g).repeat(g, 1).view([1, 1, g, g]).type(FloatTensor)
+        self.grid_y = torch.arange(g).repeat(g, 1).t().view([1, 1, g, g]).type(FloatTensor)
+        self.scaled_anchors = FloatTensor([(a_w / self.stride, a_h / self.stride) for a_w, a_h in self.anchors])
+        self.anchor_w = self.scaled_anchors[:, 0:1].view((1, self.num_anchors, 1, 1))
+        self.anchor_h = self.scaled_anchors[:, 1:2].view((1, self.num_anchors, 1, 1))
+
+    def forward(self, x, targets=None):
+
+        # Tensors for cuda support
+        FloatTensor = torch.cuda.FloatTensor if x.is_cuda else torch.FloatTensor
+        LongTensor = torch.cuda.LongTensor if x.is_cuda else torch.LongTensor
+        ByteTensor = torch.cuda.ByteTensor if x.is_cuda else torch.ByteTensor
+
+        num_samples = x.size(0)
+        grid_size = x.size(2)
+
+        prediction = (
+            x.view(num_samples, self.num_anchors, self.num_classes + 5, grid_size, grid_size)
+            .permute(0, 1, 3, 4, 2)
+            .contiguous()
+        )
+
+        # Get outputs
+        x = torch.sigmoid(prediction[..., 0])  # Center x
+        y = torch.sigmoid(prediction[..., 1])  # Center y
+        w = prediction[..., 2]  # Width
+        h = prediction[..., 3]  # Height
+        pred_conf = torch.sigmoid(prediction[..., 4])  # Conf
+        pred_cls = torch.sigmoid(prediction[..., 5:])  # Cls pred.
+
+        # If grid size does not match current we compute new offsets
+        if grid_size != self.grid_size:
+            self.compute_grid_offsets(grid_size, cuda=x.is_cuda)
+
+        # Add offset and scale with anchors
+        pred_boxes = FloatTensor(prediction[..., :4].shape)
+        pred_boxes[..., 0] = x.data + self.grid_x
+        pred_boxes[..., 1] = y.data + self.grid_y
+        pred_boxes[..., 2] = torch.exp(w.data) * self.anchor_w
+        pred_boxes[..., 3] = torch.exp(h.data) * self.anchor_h
+
+        output = torch.cat(
+            (
+                pred_boxes.view(num_samples, -1, 4) * self.stride,
+                pred_conf.view(num_samples, -1, 1),
+                pred_cls.view(num_samples, -1, self.num_classes),
+            ),
+            -1,
+        )
+
+        return output
+
 class YOLOv4(nn.Module):
-    def __init__(self, in_channels = 3, n_classes = 80):
+    def __init__(self, in_channels = 3, n_classes = 80, img_dim=608, anchors=None):
         super().__init__()
+        if anchors is None:
+            anchors = [[[10, 13], [16, 30], [33, 23]],
+                       [[30, 61], [62, 45], [59, 119]],
+                       [[116, 90], [156, 198], [373, 326]]]
 
         output_ch = (4 + 1 + n_classes) * 3
+        self.img_dim = img_dim
 
         self.backbone = Backbone(in_channels)
 
@@ -314,18 +393,39 @@ class YOLOv4(nn.Module):
 
         self.head = Head(output_ch)
 
+        self.yolo1 = YOLOLayer(anchors[0], n_classes, img_dim)
+        self.yolo2 = YOLOLayer(anchors[1], n_classes, img_dim)
+        self.yolo3 = YOLOLayer(anchors[2], n_classes, img_dim)
+
     def forward(self, x):
         b = self.backbone(x)
         n = self.neck(b)
         h = self.head(n)
-        return h
+
+        h1, h2, h3 = h
+
+        out1 = self.yolo1(h1)
+        out2 = self.yolo2(h2)
+        out3 = self.yolo3(h3)
+
+        return out1, out2, out3
+
 
 if __name__ == "__main__":
-    model = YOLOv4()
+    model = YOLOv4().cuda()
+    x1 = torch.zeros((1, 3, 608, 608)).cuda()
 
-    x1 = torch.zeros((1, 3, 608, 608))
 
-    print(model(x1))
+    
+    import time
+
+    for i in range(5):
+        t0 = time.time()
+        y = model(x1)[0]
+        t1 = time.time()
+        print(t1 - t0)
+
+    print(y.shape)
 
 
 
