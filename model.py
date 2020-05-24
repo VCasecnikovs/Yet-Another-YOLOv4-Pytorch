@@ -1,18 +1,23 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+from utils import build_targets
 
-# Model consists of 3 parts
+#Need for Pi
+import math
+
+# Model consists of
 # - backbone
 # - neck
 # - head
+# - yolo
 
 # To implement:
-# Mish (just download)
-# CSP (is in architecture)
+# Mish (just download) DONE
+# CSP (is in architecture) DONE
 # MiWRC (attention_forward)
-# SPP block (in architecture)
-# PAN (in architecture)
+# SPP block (in architecture) DONE
+# PAN (in architecture) DONE
 # Implemented with https://lutzroeder.github.io/netron/?url=https%3A%2F%2Fraw.githubusercontent.com%2FAlexeyAB%2Fdarknet%2Fmaster%2Fcfg%2Fyolov4.cfg
 
 
@@ -304,7 +309,7 @@ class Head(nn.Module):
 class YOLOLayer(nn.Module):
     """Detection layer taken and modified from https://github.com/eriklindernoren/PyTorch-YOLOv3"""
 
-    def __init__(self, anchors, num_classes, img_dim=416):
+    def __init__(self, anchors, num_classes, img_dim=608, grid_size = None):
         super(YOLOLayer, self).__init__()
         self.anchors = anchors
         self.num_anchors = len(anchors)
@@ -316,7 +321,11 @@ class YOLOLayer(nn.Module):
         self.noobj_scale = 100
         self.metrics = {}
         self.img_dim = img_dim
-        self.grid_size = 0  # grid size
+        if grid_size:
+            self.grid_size = grid_size
+            self.compute_grid_offsets(self.grid_size)
+        else:
+            self.grid_size = 0  # grid size
 
     def compute_grid_offsets(self, grid_size, cuda=True):
         self.grid_size = grid_size
@@ -373,8 +382,72 @@ class YOLOLayer(nn.Module):
             ),
             -1,
         )
+        if targets is None:
+            return output
+        
+        iou, class_mask, obj_mask, noobj_mask, tx, ty, tw, th, tcls, tconf, target_boxes = build_targets(
+                pred_boxes=pred_boxes,
+                pred_cls=pred_cls,
+                target=targets,
+                anchors=self.scaled_anchors,
+                ignore_thres=self.ignore_thres,
+            )
 
-        return output
+        targetxc = target_boxes[..., 0][obj_mask]
+        targetyc = target_boxes[..., 1][obj_mask]
+        targetwidth = target_boxes[..., 2][obj_mask]
+        targetheight = target_boxes[..., 3][obj_mask]
+
+        predxc = pred_boxes[..., 0][obj_mask]
+        predyc = pred_boxes[..., 1][obj_mask]
+        predwidth = pred_boxes[..., 2][obj_mask]
+        predheight = pred_boxes[..., 3][obj_mask]
+
+
+        #Getting target boxes in x1y1 format for diagonal calculating (cannot use w and h, because we need smallest enclosing)
+        targetx1 = targetxc - (targetwidth/2)
+        targety1 = targetyc - (targetheight/2)
+
+        targetx2 = targetxc + (targetwidth/2)
+        targety2 = targetyc + (targetheight/2)
+
+        predx1 = predxc - (pred_boxes[..., 2]/2)
+        predy1 = predyc - (pred_boxes[..., 3]/2)
+
+        predx2 = predxc + (pred_boxes[..., 2]/2)
+        predy2 = predyc + (pred_boxes[..., 3]/2)
+
+        #Calculating C
+        xc1 = torch.min(predx1, targetx1)
+        yc1 = torch.min(predy1, targety1)
+        xc2 = torch.max(predx2, targetx2)
+        yc2 = torch.max(predy2, targety2)
+
+        #Diagonal length of the smallest enclosing box (is already squared)
+        c = ((xc2 - xc1) ** 2) + ((yc2 - yc1) ** 2) + 1e-7
+
+        #Euclidean distance between central points
+        d = (target_boxes[..., 0] - pred_boxes[..., 0] ** 2) + (target_boxes[..., 0] - pred_boxes[..., 0] ** 2)
+        rDIoU = d/c
+
+        v = (4 / (math.pi ** 2)) * torch.pow((torch.atan(tw/th)-torch.atan(w/h)),2)
+
+        with torch.no_grad():
+            S = 1 - iou
+            alpha = v / (S + v)
+
+        CIoUloss = 1 - iou + rDIoU + alpha * v
+
+        loss_conf_obj = self.bce_loss(pred_conf[obj_mask], tconf[obj_mask])
+        loss_conf_noobj = self.bce_loss(pred_conf[noobj_mask], tconf[noobj_mask])
+        loss_conf = self.obj_scale * loss_conf_obj + self.noobj_scale * loss_conf_noobj
+
+        loss_cls = F.binary_cross_entropy(input=pred_cls[obj_mask], target=tcls[obj_mask])
+
+        total_loss = CIoUloss + loss_conf + loss_cls
+        return total_loss
+
+
 
 class YOLOv4(nn.Module):
     def __init__(self, in_channels = 3, n_classes = 80, img_dim=608, anchors=None):
@@ -412,20 +485,18 @@ class YOLOv4(nn.Module):
 
 
 if __name__ == "__main__":
-    model = YOLOv4().cuda()
+    model = YOLOv4().cuda().eval()
     x1 = torch.zeros((1, 3, 608, 608)).cuda()
-
-
     
     import time
 
     for i in range(5):
         t0 = time.time()
-        y = model(x1)[0]
+        y1, y2, y3 = model(x1)
         t1 = time.time()
         print(t1 - t0)
 
-    print(y.shape)
+    print(y1.shape)
 
 
 
