@@ -315,8 +315,6 @@ class YOLOLayer(nn.Module):
         self.num_anchors = len(anchors)
         self.num_classes = num_classes
         self.ignore_thres = 0.5
-        self.mse_loss = nn.MSELoss()
-        self.bce_loss = nn.BCELoss()
         self.obj_scale = 1
         self.noobj_scale = 100
         self.metrics = {}
@@ -383,15 +381,16 @@ class YOLOLayer(nn.Module):
             -1,
         )
         if targets is None:
-            return output
+            return output, 0
         
         iou, class_mask, obj_mask, noobj_mask, tx, ty, tw, th, tcls, tconf, target_boxes = build_targets(
                 pred_boxes=pred_boxes,
                 pred_cls=pred_cls,
                 target=targets,
                 anchors=self.scaled_anchors,
-                ignore_thres=self.ignore_thres,
+                ignore_thres=self.ignore_thres
             )
+        
 
         targetxc = target_boxes[..., 0][obj_mask]
         targetyc = target_boxes[..., 1][obj_mask]
@@ -411,11 +410,11 @@ class YOLOLayer(nn.Module):
         targetx2 = targetxc + (targetwidth/2)
         targety2 = targetyc + (targetheight/2)
 
-        predx1 = predxc - (pred_boxes[..., 2]/2)
-        predy1 = predyc - (pred_boxes[..., 3]/2)
+        predx1 = predxc - (predwidth/2)
+        predy1 = predyc - (predheight/2)
 
-        predx2 = predxc + (pred_boxes[..., 2]/2)
-        predy2 = predyc + (pred_boxes[..., 3]/2)
+        predx2 = predxc + (predwidth/2)
+        predy2 = predyc + (predheight/2)
 
         #Calculating C
         xc1 = torch.min(predx1, targetx1)
@@ -423,29 +422,31 @@ class YOLOLayer(nn.Module):
         xc2 = torch.max(predx2, targetx2)
         yc2 = torch.max(predy2, targety2)
 
+        iou_masked = iou[obj_mask]
+
         #Diagonal length of the smallest enclosing box (is already squared)
         c = ((xc2 - xc1) ** 2) + ((yc2 - yc1) ** 2) + 1e-7
 
         #Euclidean distance between central points
-        d = (target_boxes[..., 0] - pred_boxes[..., 0] ** 2) + (target_boxes[..., 0] - pred_boxes[..., 0] ** 2)
+        d = (targetxc - predxc) ** 2 + (targetyc - predyc) ** 2
         rDIoU = d/c
 
-        v = (4 / (math.pi ** 2)) * torch.pow((torch.atan(tw/th)-torch.atan(w/h)),2)
+        v = (4 / (math.pi ** 2)) * torch.pow((torch.atan(tw[obj_mask]/th[obj_mask])-torch.atan(w[obj_mask]/h[obj_mask])),2)
 
         with torch.no_grad():
-            S = 1 - iou
+            S = 1 - iou_masked
             alpha = v / (S + v)
 
-        CIoUloss = 1 - iou + rDIoU + alpha * v
+        CIoUloss = (1 - iou_masked + rDIoU + alpha * v).sum(0)/num_samples
 
-        loss_conf_obj = self.bce_loss(pred_conf[obj_mask], tconf[obj_mask])
-        loss_conf_noobj = self.bce_loss(pred_conf[noobj_mask], tconf[noobj_mask])
+        loss_conf_obj = F.binary_cross_entropy(pred_conf[obj_mask], tconf[obj_mask])
+        loss_conf_noobj = F.binary_cross_entropy(pred_conf[noobj_mask], tconf[noobj_mask])
         loss_conf = self.obj_scale * loss_conf_obj + self.noobj_scale * loss_conf_noobj
 
         loss_cls = F.binary_cross_entropy(input=pred_cls[obj_mask], target=tcls[obj_mask])
 
         total_loss = CIoUloss + loss_conf + loss_cls
-        return total_loss
+        return output, total_loss
 
 
 
@@ -469,34 +470,39 @@ class YOLOv4(nn.Module):
         self.yolo1 = YOLOLayer(anchors[0], n_classes, img_dim)
         self.yolo2 = YOLOLayer(anchors[1], n_classes, img_dim)
         self.yolo3 = YOLOLayer(anchors[2], n_classes, img_dim)
+        
 
-    def forward(self, x):
+    def forward(self, x, y=None):
         b = self.backbone(x)
         n = self.neck(b)
         h = self.head(n)
 
         h1, h2, h3 = h
 
-        out1 = self.yolo1(h1)
-        out2 = self.yolo2(h2)
-        out3 = self.yolo3(h3)
+        out1, loss1 = self.yolo1(h1, y)
+        out2, loss2 = self.yolo2(h2, y)
+        out3, loss3 = self.yolo3(h3, y)
 
-        return out1, out2, out3
+        return (out1, out2, out3), (loss1, loss2, loss3)
 
 
 if __name__ == "__main__":
-    model = YOLOv4().cuda().eval()
-    x1 = torch.zeros((1, 3, 608, 608)).cuda()
-    
     import time
+    import numpy as np
 
-    for i in range(5):
+    model = YOLOv4().cuda().eval()
+    x = torch.ones((1, 3, 608, 608)).cuda()
+    y = torch.from_numpy(np.asarray([[ 0, 1, 0.5, 0.5, 0.3, 0.3]])).float().cuda()
+    
+    
+
+    for i in range(1):
         t0 = time.time()
-        y1, y2, y3 = model(x1)
+        y_hat, l = model(x, y)
         t1 = time.time()
         print(t1 - t0)
-
-    print(y1.shape)
+    
+    print(l)
 
 
 

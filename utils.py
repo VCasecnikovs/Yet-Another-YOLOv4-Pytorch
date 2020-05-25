@@ -50,12 +50,12 @@ def bbox_iou(box1, box2, x1y1x2y2=True, get_areas = False):
 
 def build_targets(pred_boxes, pred_cls, target, anchors, ignore_thres):
 
-    ByteTensor = torch.cuda.ByteTensor if pred_boxes.is_cuda else torch.ByteTensor
+    ByteTensor = torch.cuda.BoolTensor if pred_boxes.is_cuda else torch.BoolTensor
     FloatTensor = torch.cuda.FloatTensor if pred_boxes.is_cuda else torch.FloatTensor
 
     nB = pred_boxes.size(0)
     nA = pred_boxes.size(1)
-    nC = pred_cls.size(-1)
+    nC = pred_cls.size(-1)  
     nG = pred_boxes.size(2)
 
     # Output tensors
@@ -69,6 +69,10 @@ def build_targets(pred_boxes, pred_cls, target, anchors, ignore_thres):
     th = FloatTensor(nB, nA, nG, nG).fill_(0)
     tcls = FloatTensor(nB, nA, nG, nG, nC).fill_(0)
 
+    target_boxes_grid = FloatTensor(nB, nA, nG, nG, 4).fill_(0)
+
+    # 2 3 xy
+    # 4 5 wf
     # Convert to position relative to box
     target_boxes = target[:, 2:6] * nG
     gxy = target_boxes[:, :2]
@@ -84,9 +88,13 @@ def build_targets(pred_boxes, pred_cls, target, anchors, ignore_thres):
     gw, gh = gwh.t()
     gi, gj = gxy.long().t()
 
+    #Setting target boxes to big grid, it would be used to count loss
+    target_boxes_grid[b, best_n, gj, gi] = target_boxes
+
     # Set masks
     obj_mask[b, best_n, gj, gi] = 1
     noobj_mask[b, best_n, gj, gi] = 0
+
 
     # Set noobj mask to zero where iou exceeds ignore threshold
     for i, anchor_ious in enumerate(ious.t()):
@@ -109,7 +117,7 @@ def build_targets(pred_boxes, pred_cls, target, anchors, ignore_thres):
 
     tconf = obj_mask.float()
 
-    return iou, class_mask, obj_mask, noobj_mask, tx, ty, tw, th, tcls, tconf, target_boxes
+    return iou, class_mask, obj_mask, noobj_mask, tx, ty, tw, th, tcls, tconf, target_boxes_grid
 
     
 
