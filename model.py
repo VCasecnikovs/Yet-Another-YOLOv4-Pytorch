@@ -489,7 +489,15 @@ class YOLOv4(nn.Module):
         out2, loss2 = self.yolo2(h2, y)
         out3, loss3 = self.yolo3(h3, y)
 
-        return (out1, out2, out3), (loss1, loss2, loss3)
+        out1 = out1.detach()
+        out2 = out2.detach()
+        out3 = out3.detach()
+
+        out = torch.cat((out1, out2, out3), dim=1)
+
+        loss = (loss1 + loss2 + loss3)/3
+
+        return out, loss
 
 
 if __name__ == "__main__":
