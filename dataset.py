@@ -101,7 +101,7 @@ class ListDataset(Dataset):
             
 
             for n in range(1, 4):
-                raw_fragment_img, raw_fragment_bbox = self.get_img_for_mosaic(brightness_rnd, contrast_rnd, hue_rnd, saturation_rnd, i=index)
+                raw_fragment_img, raw_fragment_bbox = self.get_img_for_mosaic(brightness_rnd, contrast_rnd, hue_rnd, saturation_rnd)
                 fragment_img, fragment_bbox = self.get_mosaic(n, cross_x, cross_y, raw_fragment_img, raw_fragment_bbox)
                 boxes = torch.cat([boxes, fragment_bbox])
 
@@ -155,12 +155,11 @@ class ListDataset(Dataset):
 
         return img_path, tensor_img, targets
 
-    def get_img_for_mosaic(self, brightness_rnd, contrast_rnd, hue_rnd, saturation_rnd, i):
-        img_path = self.img_files[random.randrange(0, len(self.img_files))].rstrip()
-        label_path = self.label_files[random.randrange(0, len(self.img_files))].rstrip()
+    def get_img_for_mosaic(self, brightness_rnd, contrast_rnd, hue_rnd, saturation_rnd):
+        random_index = random.randrange(0, len(self.img_files))
+        img_path = self.img_files[random_index].rstrip()
+        label_path = self.label_files[random_index].rstrip()
 
-        # img_path = self.img_files[i].rstrip()
-        # label_path = self.label_files[i].rstrip()
         
 
         # Getting image
@@ -203,8 +202,6 @@ class ListDataset(Dataset):
     def get_mosaic(self, n, cross_x, cross_y, tensor_img, boxes):
         t_height = tensor_img.shape[1]
         t_width = tensor_img.shape[2]
-
-        print(t_height, t_width)
 
         xyxy_bboxes = utils.xywh2xyxy(boxes[:, 1:])
 
@@ -319,8 +316,7 @@ class ListDataset(Dataset):
         
         boxes = boxes[filter_minbbox]
         boxes[:, 1:] = utils.xyxy2xywh(xyxy_bboxes)[filter_minbbox]
-        print(xyxy_bboxes[filter_minbbox])
-
+        
         return tensor_img, boxes
 
 

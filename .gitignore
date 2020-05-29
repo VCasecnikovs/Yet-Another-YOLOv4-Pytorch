@@ -2,3 +2,5 @@
 /__pycache__
 /.ipynb_checkpoints
 /.virtual_documents
+/labels
+/images
