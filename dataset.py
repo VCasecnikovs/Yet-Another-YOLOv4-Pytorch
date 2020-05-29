@@ -328,9 +328,8 @@ class ListDataset(Dataset):
         for i, boxes in enumerate(targets):
             boxes[:, 0] = i
         targets = torch.cat(targets, 0)
-        
-        
-        return paths, imgs, targets
+
+        return paths, torch.stack(imgs), targets
 
 
     def __len__(self):

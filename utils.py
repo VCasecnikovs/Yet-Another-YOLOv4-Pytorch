@@ -20,6 +20,28 @@ def xywh2xyxy(x):
     y[:, 3] = x[:, 1] + x[:, 3] / 2
     return y
 
+def get_img_with_bboxes(img, bboxes):
+    _, width, height = img.shape
+    c, h, w = img.shape
+    
+    bboxes_xyxy = utils.xywh2xyxy(bboxes[:, 2:])
+    bboxes_xyxy[:,0] *= w
+    bboxes_xyxy[:,1] *= h
+    bboxes_xyxy[:,2] *= w
+    bboxes_xyxy[:,3] *= h
+    
+    arr = bboxes_xyxy.numpy()
+    arr = arr.round().astype(int)
+    img = img.permute(1, 2, 0)
+    img = img.numpy()
+    img = (img * 255).astype(np.uint8) 
+    
+    #Otherwise cv2 rectangle will return UMat without paint
+    img_ = img.copy()
+    for bbox in arr:
+        img_ = cv2.rectangle(img_, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (255, 0, 0), 3)
+    return Image.fromarray(img_)
+
  
 def bbox_wh_iou(wh1, wh2):
     wh2 = wh2.t()
@@ -139,4 +161,3 @@ def build_targets(pred_boxes, pred_cls, target, anchors, ignore_thres):
     return iou, class_mask, obj_mask, noobj_mask, tx, ty, tw, th, tcls, tconf, target_boxes_grid
 
     
-
