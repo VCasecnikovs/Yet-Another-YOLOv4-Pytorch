@@ -227,17 +227,17 @@ class ListDataset(Dataset):
 
 
         #CHOOSING TOP LEFT CORNER (doing offset to have more than fex pixels in bbox :-) )
-        cut_x1 = random.randint(0, int(t_width * (1 - self.cross_offset)))
-        cut_y1 = random.randint(0, int(t_height * (1 - self.cross_offset)))
+        cut_x1 = random.randint(0, int(t_width * 0.33))
+        cut_y1 = random.randint(0, int(t_height * 0.33))
 
 
         #Now we should find which axis should we randomly enlarge (this we do by finding out which ratio is bigger); cross x is basically width of the top left picture
         if (t_width - cut_x1) / width_of_nth_pic < (t_height - cut_y1) / height_of_nth_pic:
-            cut_x2 = random.randint(cut_x1 + int(t_width * self.cross_offset), t_width)
+            cut_x2 = random.randint(cut_x1 + int(t_width * 0.67), t_width)
             cut_y2 = int(cut_y1 + (cut_x2-cut_x1)/width_of_nth_pic*height_of_nth_pic)
 
         else:
-            cut_y2 = random.randint(cut_y1 + int(t_height * self.cross_offset), t_height)
+            cut_y2 = random.randint(cut_y1 + int(t_height * 0.67), t_height)
             cut_x2 = int(cut_x1 + (cut_y2-cut_y1)/height_of_nth_pic*width_of_nth_pic)
         
         #RESIZING AND INSERTING (TO DO 2D interpolation wants 4 dimensions, so I add and remove one by using None and squeeze)
@@ -316,7 +316,7 @@ class ListDataset(Dataset):
         
         boxes = boxes[filter_minbbox]
         boxes[:, 1:] = utils.xyxy2xywh(xyxy_bboxes)[filter_minbbox]
-        
+
         return tensor_img, boxes
 
 
