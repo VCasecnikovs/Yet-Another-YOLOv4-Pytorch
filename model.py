@@ -174,6 +174,8 @@ class Backbone(nn.Module):
         x4 = self.d4(x3)
         x5 = self.d5(x4)
 
+        
+
         return (x5, x4, x3)
 
 class PAN_Layer(nn.Module):
@@ -367,10 +369,10 @@ class YOLOLayer(nn.Module):
 
         # Add offset and scale with anchors
         pred_boxes = FloatTensor(prediction[..., :4].shape)
-        pred_boxes[..., 0] = x.data + self.grid_x
-        pred_boxes[..., 1] = y.data + self.grid_y
-        pred_boxes[..., 2] = torch.exp(w.data) * self.anchor_w
-        pred_boxes[..., 3] = torch.exp(h.data) * self.anchor_h
+        pred_boxes[..., 0] = x + self.grid_x
+        pred_boxes[..., 1] = y + self.grid_y
+        pred_boxes[..., 2] = torch.exp(w) * self.anchor_w
+        pred_boxes[..., 3] = torch.exp(h) * self.anchor_h
 
         output = torch.cat(
             (
@@ -446,6 +448,9 @@ class YOLOLayer(nn.Module):
         loss_cls = F.binary_cross_entropy(input=pred_cls[obj_mask], target=tcls[obj_mask])
 
         total_loss = CIoUloss + loss_conf + loss_cls
+        
+        # print(f"IoU: {iou_masked}; DIoU: {rDIoU}; alpha: {alpha}; v: {v}")
+        # print(f"CIoU : {CIoUloss.item()}; Confindence: {loss_conf.item()}; Class loss should be because of label smoothing: {loss_cls.item()}")
         return output, total_loss
 
 
@@ -480,6 +485,7 @@ class YOLOv4(nn.Module):
 
     def forward(self, x, y=None):
         b = self.backbone(x)
+
         n = self.neck(b)
         h = self.head(n)
 
