@@ -3,6 +3,7 @@ import cv2
 from torch.backends import cudnn
 import torch
 import utils
+import time
 
 coco_dict = {0: 'person',
             1: 'bicycle',
@@ -97,11 +98,15 @@ m.eval()
 
 m = m.cuda()
 
+#To warm up JIT
+m(torch.zeros((1, 3, 608, 608)).cuda())
 
 cap = cv2.VideoCapture(0)
 
+frames_n = 0
+start_time = time.time()
+
 while True:
-    print("Frame got")
     ret, frame = cap.read()
     if not ret:
         break
@@ -123,12 +128,17 @@ while True:
 
     bboxes, labels = utils.get_bboxes_from_anchors(anchors, 0.4, 0.5, coco_dict)
     arr = utils.get_img_with_bboxes(x.cpu(), bboxes[0].cpu(), resize=False, labels=labels[0])
-
     arr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+    
+    frames_n += 1
+
+    arr = cv2.putText(arr, "FPS: " + str(frames_n / (time.time() - start_time)), (100, 100), cv2.FONT_HERSHEY_DUPLEX, 0.75, (255, 255, 255))
 
     cv2.imshow("test", arr)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
+
+    
 
     
     
