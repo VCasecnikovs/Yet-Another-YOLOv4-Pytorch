@@ -30,8 +30,16 @@ You can make inference, guide bellow.
 
     import model
     #If you change n_classes from the pretrained, there will be caught one error, don't panic it is ok
+
+    #FROM SAVED WEIGHTS
     m = model.YOLOv4(n_classes=1, weights_path="weights/yolov4.pth")
+
+    #AUTOMATICALLY DOWNLOAD PRETRAINED
+    m = model.YOLOv4(n_classes=1, pretrained=True)
     
+    #YOU CAN USE TORCH HUB
+    m = torch.hub.load("VCasecnikovs/Yet-Another-YOLOv4-Pytorch", "yolov4", pretrained=True)
+
 ## Download weights
 You can download weights using from this link: https://drive.google.com/open?id=12AaR4fvIQPZ468vhm0ZYZSLgWac2HBnq
 
