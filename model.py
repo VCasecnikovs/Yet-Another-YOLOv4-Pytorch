@@ -456,7 +456,7 @@ class YOLOLayer(nn.Module):
 
 
 class YOLOv4(nn.Module):
-    def __init__(self, in_channels = 3, n_classes = 80, weights_path=None, img_dim=608, anchors=None):
+    def __init__(self, in_channels = 3, n_classes = 80, weights_path=None, pretrained=False, img_dim=608, anchors=None):
         super().__init__()
         if anchors is None:
             anchors = [[[10, 13], [16, 30], [33, 23]],
@@ -478,9 +478,15 @@ class YOLOv4(nn.Module):
         
         if weights_path:
             try: #If we change input or output layers amount, we will have an option to use pretrained weights
-                ret = self.load_state_dict(torch.load(weights_path), strict=False)
+                self.load_state_dict(torch.load(weights_path), strict=False)
             except RuntimeError as e:
                 print(f'[Warning] Ignoring {e}')
+        elif pretrained:
+            try: #If we change input or output layers amount, we will have an option to use pretrained weights
+                self.load_state_dict(torch.hub.load_state_dict_from_url("https://github.com/VCasecnikovs/Yet-Another-YOLOv4-Pytorch/releases/download/V1.0/yolov4.pth"), strict=False)
+            except RuntimeError as e:
+                print(f'[Warning] Ignoring {e}')
+
 
 
     def forward(self, x, y=None):
