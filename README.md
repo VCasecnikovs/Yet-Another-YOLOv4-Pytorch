@@ -11,9 +11,11 @@ This is implementation of YOLOv4 object detection neural network on pytorch. I'l
  - [x] Letterbox for validation
  - [x] HSV transforms for train
  - [x] MOSAIC for train
- - [ ] MiWRC for forward attention
+ - [ ] Dropblock layers for training
  - [ ] Self attention attack
  - [ ] Notebook with guide
+ - [ ] MiWRC for forward attention (Was not implemented in official implementation, neck should be changed from PAN to BiFPN)
+
 
 ## What you can already do
 You can use video_demo.py to take a look at the original weights realtime OD detection. (Have 9 fps on my GTX1060 laptop!!!)
