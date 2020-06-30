@@ -147,7 +147,7 @@ class DownSampleBlock(nn.Module):
         x2 = self.c2(x1)
         x3 = self.r3(x2)
         x4 = self.c4(x3)
-        xd4 = self.dense_c2_c4(x1)
+        xd4 = self.dense_c2_c4(x1) #CSP
         x4 = torch.cat([x4, xd4], dim=1)
         x5 = self.c5(x4)
 
@@ -560,11 +560,11 @@ class YOLOLayer(nn.Module):
 
         CIoUloss = (1 - iou_masked + rDIoU + alpha * v).sum(0)/num_samples
 
-        loss_conf_obj = F.binary_cross_entropy(pred_conf[obj_mask], tconf[obj_mask])
-        loss_conf_noobj = F.binary_cross_entropy(pred_conf[noobj_mask], tconf[noobj_mask])
+        loss_conf_obj = F.binary_cross_entropy_with_logits(pred_conf[obj_mask], tconf[obj_mask])
+        loss_conf_noobj = F.binary_cross_entropy_with_logits(pred_conf[noobj_mask], tconf[noobj_mask])
         loss_conf = self.obj_scale * loss_conf_obj + self.noobj_scale * loss_conf_noobj
 
-        loss_cls = F.binary_cross_entropy(input=pred_cls[obj_mask], target=tcls[obj_mask])
+        loss_cls = F.binary_cross_entropy_with_logits(input=pred_cls[obj_mask], target=tcls[obj_mask])
 
         total_loss = CIoUloss + loss_conf + loss_cls
         
