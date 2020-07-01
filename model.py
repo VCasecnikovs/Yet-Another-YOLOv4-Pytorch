@@ -433,7 +433,7 @@ class YOLOLayer(nn.Module):
             b1_x1, b1_y1, b1_x2, b1_y2 = box1[:, 0], box1[:, 1], box1[:, 2], box1[:, 3]
             b2_x1, b2_y1, b2_x2, b2_y2 = box2[:, 0], box2[:, 1], box2[:, 2], box2[:, 3]
 
-        # get the corrdinates of the intersection rectangle
+        # get the coordinates of the intersection rectangle
         inter_rect_x1 = torch.max(b1_x1, b2_x1)
         inter_rect_y1 = torch.max(b1_y1, b2_y1)
         inter_rect_x2 = torch.min(b1_x2, b2_x2)
@@ -455,11 +455,28 @@ class YOLOLayer(nn.Module):
         return iou
 
 
+    def smallestenclosing(self, pred_boxes, target_boxes):
+        #Calculating smallest enclosing
+        targetxc = target_boxes[..., 0]
+        targetyc = target_boxes[..., 1]
+        targetwidth = target_boxes[..., 2]
+        targetheight = target_boxes[..., 3]
 
+        predxc = pred_boxes[..., 0]
+        predyc = pred_boxes[..., 1]
+        predwidth = pred_boxes[..., 2]
+        predheight = pred_boxes[..., 3]
+
+
+        xc1 = torch.min(predxc - (predwidth/2), targetxc - (targetwidth/2))
+        yc1 = torch.min(predyc - (predheight/2), targetyc - (targetheight/2))
+        xc2 = torch.max(predxc + (predwidth/2), targetxc + (targetwidth/2))
+        yc2 = torch.max(predyc + (predheight/2), targetyc + (targetheight/2))
+
+        return xc1, yc1, xc2, yc2
 
 
     def forward(self, x, targets=None):
-
         # Tensors for cuda support
         FloatTensor = torch.cuda.FloatTensor if x.is_cuda else torch.FloatTensor
         LongTensor = torch.cuda.LongTensor if x.is_cuda else torch.LongTensor
@@ -501,6 +518,9 @@ class YOLOLayer(nn.Module):
             ),
             -1,
         )
+
+
+        #OUTPUT IS ALL BOXES WITH THEIR CONFIDENCE AND WITH CLASS
         if targets is None:
             return output, 0
         
@@ -510,64 +530,39 @@ class YOLOLayer(nn.Module):
                 target=targets,
                 anchors=self.scaled_anchors,
                 ignore_thres=self.ignore_thres
-            )
+        )
+
         
-
-        targetxc = target_boxes[..., 0][obj_mask]
-        targetyc = target_boxes[..., 1][obj_mask]
-        targetwidth = target_boxes[..., 2][obj_mask]
-        targetheight = target_boxes[..., 3][obj_mask]
-
-        predxc = pred_boxes[..., 0][obj_mask]
-        predyc = pred_boxes[..., 1][obj_mask]
-        predwidth = pred_boxes[..., 2][obj_mask]
-        predheight = pred_boxes[..., 3][obj_mask]
-
-
-        #Getting target boxes in x1y1 format for diagonal calculating (cannot use w and h, because we need smallest enclosing)
-        targetx1 = targetxc - (targetwidth/2)
-        targety1 = targetyc - (targetheight/2)
-
-        targetx2 = targetxc + (targetwidth/2)
-        targety2 = targetyc + (targetheight/2)
-
-        predx1 = predxc - (predwidth/2)
-        predy1 = predyc - (predheight/2)
-
-        predx2 = predxc + (predwidth/2)
-        predy2 = predyc + (predheight/2)
-
-        #Calculating C
-        xc1 = torch.min(predx1, targetx1)
-        yc1 = torch.min(predy1, targety1)
-        xc2 = torch.max(predx2, targetx2)
-        yc2 = torch.max(predy2, targety2)
-
-        iou_masked = iou[obj_mask]
-
+        
         #Diagonal length of the smallest enclosing box (is already squared)
+        xc1, yc1, xc2, yc2 = self.smallestenclosing(pred_boxes[obj_mask], target_boxes[obj_mask])
         c = ((xc2 - xc1) ** 2) + ((yc2 - yc1) ** 2) + 1e-7
 
         #Euclidean distance between central points
-        d = (targetxc - predxc) ** 2 + (targetyc - predyc) ** 2
+        d = (tx[obj_mask] - x[obj_mask]) ** 2 + (ty[obj_mask] - y[obj_mask]) ** 2
+
         rDIoU = d/c
+
+        iou_masked = iou[obj_mask]
 
         v = (4 / (math.pi ** 2)) * torch.pow((torch.atan(tw[obj_mask]/th[obj_mask])-torch.atan(w[obj_mask]/h[obj_mask])),2)
 
         with torch.no_grad():
             S = 1 - iou_masked
-            alpha = v / (S + v)
+            alpha = v / (S + v + 1e-7)
 
+       
         CIoUloss = (1 - iou_masked + rDIoU + alpha * v).sum(0)/num_samples
 
-        loss_conf_obj = F.binary_cross_entropy_with_logits(pred_conf[obj_mask], tconf[obj_mask])
-        loss_conf_noobj = F.binary_cross_entropy_with_logits(pred_conf[noobj_mask], tconf[noobj_mask])
+        loss_conf_obj = F.binary_cross_entropy(pred_conf[obj_mask], tconf[obj_mask])
+        loss_conf_noobj = F.binary_cross_entropy(pred_conf[noobj_mask], tconf[noobj_mask])
         loss_conf = self.obj_scale * loss_conf_obj + self.noobj_scale * loss_conf_noobj
 
-        loss_cls = F.binary_cross_entropy_with_logits(input=pred_cls[obj_mask], target=tcls[obj_mask])
+        loss_cls = F.binary_cross_entropy(input=pred_cls[obj_mask], target=tcls[obj_mask])
 
-        total_loss = CIoUloss + loss_conf + loss_cls
-        
+        total_loss = CIoUloss + loss_cls + loss_conf
+        # print(f"C: {c}; D: {d}")
+        # print(f"Confidence is object: {loss_conf_obj}, Confidence no object: {loss_conf_noobj}")
         # print(f"IoU: {iou_masked}; DIoU: {rDIoU}; alpha: {alpha}; v: {v}")
         # print(f"CIoU : {CIoUloss.item()}; Confindence: {loss_conf.item()}; Class loss should be because of label smoothing: {loss_cls.item()}")
         return output, total_loss
@@ -610,7 +605,6 @@ class YOLOv4(nn.Module):
 
     def forward(self, x, y=None):
         b = self.backbone(x)
-
         n = self.neck(b)
         h = self.head(n)
 
