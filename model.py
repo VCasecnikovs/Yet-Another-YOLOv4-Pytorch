@@ -32,9 +32,53 @@ class Mish(nn.Module):
         #inlining this saves 1 second per epoch (V100 GPU) vs having a temp x and then returning x(!)
         return x *( torch.tanh(F.softplus(x)))
 
+
+#Taken from https://github.com/Randl/DropBlock-pytorch/blob/master/DropBlock.py
+class DropBlock2D(nn.Module):
+    r"""Randomly zeroes spatial blocks of the input tensor.
+    As described in the paper
+    `DropBlock: A regularization method for convolutional networks`_ ,
+    dropping whole blocks of feature map allows to remove semantic
+    information as compared to regular dropout.
+    Args:
+        keep_prob (float, optional): probability of an element to be kept.
+        Authors recommend to linearly decrease this value from 1 to desired
+        value.
+        block_size (int, optional): size of the block. Block size in paper
+        usually equals last feature map dimensions.
+    Shape:
+        - Input: :math:`(N, C, H, W)`
+        - Output: :math:`(N, C, H, W)` (same shape as input)
+    .. _DropBlock: A regularization method for convolutional networks:
+       https://arxiv.org/abs/1810.12890
+    """
+
+    def __init__(self, keep_prob=0.9, block_size=7):
+        super(DropBlock2D, self).__init__()
+        self.keep_prob = keep_prob
+        self.block_size = block_size
+
+    def forward(self, input):
+        if not self.training or self.keep_prob == 1:
+            return input
+        gamma = (1. - self.keep_prob) / self.block_size ** 2
+        for sh in input.shape[2:]:
+            gamma *= sh / (sh - self.block_size + 1)
+        M = torch.bernoulli(torch.ones_like(input) * gamma)
+        Msum = F.conv2d(M,
+                        torch.ones((input.shape[1], 1, self.block_size, self.block_size)).to(device=input.device,
+                                                                                             dtype=input.dtype),
+                        padding=self.block_size // 2,
+                        groups=input.shape[1])
+        torch.set_printoptions(threshold=5000)
+        mask = (Msum < 1).to(device=input.device, dtype=input.dtype)
+        return input * mask * mask.numel() /mask.sum() 
+
+
+
 #Taken and modified from https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/models.py
 class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, activation, bn=True, bias=False):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, activation, bn=True, bias=False, dropblock=True):
         super().__init__()
 
         #PADDING is (ks-1)/2
@@ -55,6 +99,9 @@ class ConvBlock(nn.Module):
         else:
             raise BadParams("Please use on of suggested activations: mish, relu, leaky, linear.")
 
+        if dropblock:
+            modules.append(DropBlock2D())
+
         self.module = nn.Sequential(*modules)
 
     def forward(self, x):
@@ -72,7 +119,7 @@ class ResBlock(nn.Module):
         shortcut (bool): if True, residual tensor addition is enabled.
     """
     #Делаем несколько блоков, residual. Один блок состоит из двух свёрток, с ядрами 1 на 1 и 3 на 3
-    def __init__(self, ch, nblocks=1, shortcut=True):
+    def __init__(self, ch, nblocks=1, shortcut=True, dropblock=True):
         super().__init__()
         self.shortcut = shortcut
         self.module_list = nn.ModuleList()
@@ -82,6 +129,11 @@ class ResBlock(nn.Module):
             resblock_one.append(ConvBlock(ch, ch, 3, 1, 'mish'))
             self.module_list.append(resblock_one)
 
+        if dropblock:
+            self.dropblock = DropBlock2D()
+        else:
+            self.dropblock = False
+
     def forward(self, x):
         #Для каждого модуля проводим через residual слой
         for module in self.module_list:
@@ -89,6 +141,9 @@ class ResBlock(nn.Module):
             for res in module:
                 h = res(h)
             x = x + h if self.shortcut else h
+            
+        if self.dropblock:
+            x = self.dropblock(x)
         return x
 
 
