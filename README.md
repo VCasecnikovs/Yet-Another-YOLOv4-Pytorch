@@ -12,7 +12,7 @@ This is implementation of YOLOv4 object detection neural network on pytorch. I'l
  - [x] HSV transforms for train
  - [x] MOSAIC for train
  - [ ] Dropblock layers for training
- - [ ] Self attention attack
+ - [ ] Self adversial attack
  - [ ] Notebook with guide
  - [ ] MiWRC for forward attention (Was not implemented in official implementation, neck should be changed from PAN to BiFPN)
 
