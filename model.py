@@ -59,19 +59,20 @@ class DropBlock2D(nn.Module):
         self.block_size = block_size
 
     def forward(self, input):
+        # print("Before: ", torch.isnan(input).sum())
         if not self.training or self.keep_prob == 1:
             return input
         gamma = (1. - self.keep_prob) / self.block_size ** 2
         for sh in input.shape[2:]:
             gamma *= sh / (sh - self.block_size + 1)
-        M = torch.bernoulli(torch.ones_like(input) * gamma)
+        M = torch.bernoulli(torch.ones_like(input) * gamma).to(device=input.device)
         Msum = F.conv2d(M,
                         torch.ones((input.shape[1], 1, self.block_size, self.block_size)).to(device=input.device,
                                                                                              dtype=input.dtype),
                         padding=self.block_size // 2,
                         groups=input.shape[1])
-        torch.set_printoptions(threshold=5000)
         mask = (Msum < 1).to(device=input.device, dtype=input.dtype)
+        # print("After: ", torch.isnan(input * mask * mask.numel() /mask.sum()).sum())
         return input * mask * mask.numel() /mask.sum() 
 
 
@@ -97,15 +98,19 @@ class ConvBlock(nn.Module):
         elif activation == "linear":
             pass
         else:
-            raise BadParams("Please use on of suggested activations: mish, relu, leaky, linear.")
+            raise BadParams("Please use one of suggested activations: mish, relu, leaky, linear.")
 
+        self.use_dropblock = dropblock
         if dropblock:
-            modules.append(DropBlock2D())
+            self.dropblock = DropBlock2D()
 
         self.module = nn.Sequential(*modules)
 
     def forward(self, x):
-        return self.module(x)
+        y = self.module(x)
+        if self.use_dropblock:
+            y = self.dropblock(y)
+        return y
 
 
 #Taken and modified from https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/models.py       
@@ -130,9 +135,10 @@ class ResBlock(nn.Module):
             self.module_list.append(resblock_one)
 
         if dropblock:
+            self.use_dropblock = True
             self.dropblock = DropBlock2D()
         else:
-            self.dropblock = False
+            self.use_dropblock = False
 
     def forward(self, x):
         #Для каждого модуля проводим через residual слой
@@ -141,9 +147,10 @@ class ResBlock(nn.Module):
             for res in module:
                 h = res(h)
             x = x + h if self.shortcut else h
-            
-        if self.dropblock:
-            x = self.dropblock(x)
+
+            if self.use_dropblock:
+                x = self.dropblock(x)
+
         return x
 
 
@@ -227,9 +234,6 @@ class Backbone(nn.Module):
         x3 = self.d3(x2)
         x4 = self.d4(x3)
         x5 = self.d5(x4)
-
-        
-
         return (x5, x4, x3)
 
 class PAN_Layer(nn.Module):
@@ -331,7 +335,7 @@ class HeadOutput(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.c1 = ConvBlock(in_channels, in_channels*2, 3, 1, "leaky")
-        self.c2 = ConvBlock(in_channels*2, out_channels, 1, 1, "linear", bn=False, bias=True)
+        self.c2 = ConvBlock(in_channels*2, out_channels, 1, 1, "linear", bn=False, bias=True, dropblock=False)
     
     def forward(self, x):
         x1 = self.c1(x)
@@ -555,7 +559,7 @@ class YOLOLayer(nn.Module):
         pred_cls = torch.sigmoid(prediction[..., 5:])  # Cls pred.
 
         # If grid size does not match current we compute new offsets
-        if grid_size != self.grid_size:
+        if grid_size != self.grid_size or self.grid_x.is_cuda != x.is_cuda:
             self.compute_grid_offsets(grid_size, cuda=x.is_cuda)
 
         # Add offset and scale with anchors
