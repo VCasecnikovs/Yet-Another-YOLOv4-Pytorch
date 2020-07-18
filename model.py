@@ -123,7 +123,7 @@ class ResBlock(nn.Module):
         nblocks (int): number of residual blocks.
         shortcut (bool): if True, residual tensor addition is enabled.
     """
-    #Делаем несколько блоков, residual. Один блок состоит из двух свёрток, с ядрами 1 на 1 и 3 на 3
+    #Creating few conv blocks. One with kernel 3, second with kernel 1. With residual skip connection
     def __init__(self, ch, nblocks=1, shortcut=True, dropblock=True):
         super().__init__()
         self.shortcut = shortcut
