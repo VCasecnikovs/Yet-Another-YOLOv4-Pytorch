@@ -20,7 +20,7 @@ import math
 # Implemented with https://lutzroeder.github.io/netron/?url=https%3A%2F%2Fraw.githubusercontent.com%2FAlexeyAB%2Fdarknet%2Fmaster%2Fcfg%2Fyolov4.cfg
 
 
-class BadParams(Exception):
+class BadArguments(Exception):
     pass
 
 #Taken from https://github.com/lessw2020/mish
@@ -98,7 +98,7 @@ class ConvBlock(nn.Module):
         elif activation == "linear":
             pass
         else:
-            raise BadParams("Please use one of suggested activations: mish, relu, leaky, linear.")
+            raise BadArguments("Please use one of suggested activations: mish, relu, leaky, linear.")
 
         self.use_dropblock = dropblock
         if dropblock:
@@ -154,7 +154,6 @@ class ResBlock(nn.Module):
         return x
 
 
-
 class DownSampleFirst(nn.Module):
     """
     This is first downsample of the backbone model.
@@ -190,6 +189,7 @@ class DownSampleFirst(nn.Module):
         x7 = self.c7(x6)
         return x7
 
+
 class DownSampleBlock(nn.Module):
     def __init__(self, in_c, out_c, nblocks=2):
         super().__init__()
@@ -216,7 +216,6 @@ class DownSampleBlock(nn.Module):
         return x5
 
 
-
 class Backbone(nn.Module):
     def __init__(self, in_channels):
         super().__init__()
@@ -227,7 +226,6 @@ class Backbone(nn.Module):
         self.d4 = DownSampleBlock(256, 512, nblocks=8)
         self.d5 = DownSampleBlock(512, 1024, nblocks=4)
 
-
     def forward(self, x):
         x1 = self.d1(x)
         x2 = self.d2(x1)
@@ -235,6 +233,7 @@ class Backbone(nn.Module):
         x4 = self.d4(x3)
         x5 = self.d5(x4)
         return (x5, x4, x3)
+
 
 class PAN_Layer(nn.Module):
     def __init__(self, in_channels):
@@ -309,6 +308,7 @@ class Neck(nn.Module):
 
         return (x9, x8, x7)
 
+
 class HeadPreprocessing(nn.Module):
     def __init__(self, in_channels):
         super().__init__()
@@ -330,6 +330,7 @@ class HeadPreprocessing(nn.Module):
         x6 = self.c6(x5)
 
         return x6
+
 
 class HeadOutput(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -365,7 +366,8 @@ class Head(nn.Module):
         x5 = self.ho3(x4)
 
         return (x1, x3, x5)
-        
+
+
 class YOLOLayer(nn.Module):
     """Detection layer taken and modified from https://github.com/eriklindernoren/PyTorch-YOLOv3"""
 
@@ -513,7 +515,6 @@ class YOLOLayer(nn.Module):
         iou = inter_area / union_area
         return iou
 
-
     def smallestenclosing(self, pred_boxes, target_boxes):
         #Calculating smallest enclosing
         targetxc = target_boxes[..., 0]
@@ -533,7 +534,6 @@ class YOLOLayer(nn.Module):
         yc2 = torch.max(predyc + (predheight/2), targetyc + (targetheight/2))
 
         return xc1, yc1, xc2, yc2
-
 
     def forward(self, x, targets=None):
         # Tensors for cuda support
@@ -578,7 +578,6 @@ class YOLOLayer(nn.Module):
             -1,
         )
 
-
         #OUTPUT IS ALL BOXES WITH THEIR CONFIDENCE AND WITH CLASS
         if targets is None:
             return output, 0
@@ -590,8 +589,6 @@ class YOLOLayer(nn.Module):
                 anchors=self.scaled_anchors,
                 ignore_thres=self.ignore_thres
         )
-
-        
         
         #Diagonal length of the smallest enclosing box (is already squared)
         xc1, yc1, xc2, yc2 = self.smallestenclosing(pred_boxes[obj_mask], target_boxes[obj_mask])
@@ -627,7 +624,6 @@ class YOLOLayer(nn.Module):
         return output, total_loss
 
 
-
 class YOLOv4(nn.Module):
     def __init__(self, in_channels = 3, n_classes = 80, weights_path=None, pretrained=False, img_dim=608, anchors=None):
         super().__init__()
@@ -659,7 +655,6 @@ class YOLOv4(nn.Module):
                 self.load_state_dict(torch.hub.load_state_dict_from_url("https://github.com/VCasecnikovs/Yet-Another-YOLOv4-Pytorch/releases/download/V1.0/yolov4.pth"), strict=False)
             except RuntimeError as e:
                 print(f'[Warning] Ignoring {e}')
-
 
 
     def forward(self, x, y=None):
