@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-#Need for Pi
+# Need for Pi
 import math
 
 # Model consists of
@@ -17,23 +17,25 @@ import math
 # MiWRC (attention_forward)
 # SPP block (in architecture) DONE
 # PAN (in architecture) DONE
-# Implemented with https://lutzroeder.github.io/netron/?url=https%3A%2F%2Fraw.githubusercontent.com%2FAlexeyAB%2Fdarknet%2Fmaster%2Fcfg%2Fyolov4.cfg
+# Implemented with
+# https://lutzroeder.github.io/netron/?url=https%3A%2F%2Fraw.githubusercontent.com%2FAlexeyAB%2Fdarknet%2Fmaster%2Fcfg%2Fyolov4.cfg
 
 
 class BadArguments(Exception):
     pass
 
-#Taken from https://github.com/lessw2020/mish
+
+# Taken from https://github.com/lessw2020/mish
 class Mish(nn.Module):
     def __init__(self):
         super().__init__()
 
     def forward(self, x):
-        #inlining this saves 1 second per epoch (V100 GPU) vs having a temp x and then returning x(!)
-        return x *( torch.tanh(F.softplus(x)))
+        # inlining this saves 1 second per epoch (V100 GPU) vs having a temp x and then returning x(!)
+        return x * torch.tanh(F.softplus(x))
 
 
-#Taken from https://github.com/Randl/DropBlock-pytorch/blob/master/DropBlock.py
+# Taken from https://github.com/Randl/DropBlock-pytorch/blob/master/DropBlock.py
 class DropBlock2D(nn.Module):
     r"""Randomly zeroes spatial blocks of the input tensor.
     As described in the paper
@@ -73,16 +75,15 @@ class DropBlock2D(nn.Module):
                         groups=input.shape[1])
         mask = (Msum < 1).to(device=input.device, dtype=input.dtype)
         # print("After: ", torch.isnan(input * mask * mask.numel() /mask.sum()).sum())
-        return input * mask * mask.numel() /mask.sum() 
+        return input * mask * mask.numel() / mask.sum()
 
 
-
-#Taken and modified from https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/models.py
+# Taken and modified from https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/models.py
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, activation, bn=True, bias=False, dropblock=True):
         super().__init__()
 
-        #PADDING is (ks-1)/2
+        # PADDING is (ks-1)/2
         padding = (kernel_size - 1) // 2
 
         modules = []
@@ -113,7 +114,7 @@ class ConvBlock(nn.Module):
         return y
 
 
-#Taken and modified from https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/models.py       
+# Taken and modified from https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/models.py
 class ResBlock(nn.Module):
     """
     Sequential residual blocks each of which consists of \
@@ -123,7 +124,7 @@ class ResBlock(nn.Module):
         nblocks (int): number of residual blocks.
         shortcut (bool): if True, residual tensor addition is enabled.
     """
-    #Creating few conv blocks. One with kernel 3, second with kernel 1. With residual skip connection
+    # Creating few conv blocks. One with kernel 3, second with kernel 1. With residual skip connection
     def __init__(self, ch, nblocks=1, shortcut=True, dropblock=True):
         super().__init__()
         self.shortcut = shortcut
@@ -141,7 +142,6 @@ class ResBlock(nn.Module):
             self.use_dropblock = False
 
     def forward(self, x):
-        #Для каждого модуля проводим через residual слой
         for module in self.module_list:
             h = x
             for res in module:
@@ -161,7 +161,7 @@ class DownSampleFirst(nn.Module):
     Args:
         in_channels (int): Amount of channels to input, if you use RGB, it should be 3
     """
-    def __init__(self, in_channels = 3):
+    def __init__(self, in_channels=3):
         super().__init__()
 
         self.c1 = ConvBlock(in_channels, 32, 3, 1, "mish")
@@ -171,7 +171,7 @@ class DownSampleFirst(nn.Module):
         self.c5 = ConvBlock(32, 64, 3, 1, "mish")
         self.c6 = ConvBlock(64, 64, 1, 1, "mish")
 
-        #CSP Layer
+        # CSP Layer
         self.dense_c3_c6 = ConvBlock(64, 64, 1, 1, "mish")
 
         self.c7 = ConvBlock(128, 64, 1, 1, "mish")
@@ -179,12 +179,12 @@ class DownSampleFirst(nn.Module):
     def forward(self, x):
         x1 = self.c1(x)
         x2 = self.c2(x1)
-        x3 = self.c3(x2) 
+        x3 = self.c3(x2)
         x4 = self.c4(x3)
         x5 = self.c5(x4)
-        x5 = x5 + x3    #Residual block
+        x5 = x5 + x3    # Residual block
         x6 = self.c6(x5)
-        xd6 = self.dense_c3_c6(x2) #CSP
+        xd6 = self.dense_c3_c6(x2)  # CSP
         x6 = torch.cat([x6, xd6], dim=1)
         x7 = self.c7(x6)
         return x7
@@ -199,7 +199,7 @@ class DownSampleBlock(nn.Module):
         self.r3 = ResBlock(in_c, nblocks=nblocks)
         self.c4 = ConvBlock(in_c, in_c, 1, 1, "mish")
 
-        #CSP Layer
+        # CSP Layer
         self.dense_c2_c4 = ConvBlock(out_c, in_c, 1, 1, "mish")
 
         self.c5 = ConvBlock(out_c, out_c, 1, 1, "mish")
@@ -209,7 +209,7 @@ class DownSampleBlock(nn.Module):
         x2 = self.c2(x1)
         x3 = self.r3(x2)
         x4 = self.c4(x3)
-        xd4 = self.dense_c2_c4(x1) #CSP
+        xd4 = self.dense_c2_c4(x1)  # CSP
         x4 = torch.cat([x4, xd4], dim=1)
         x5 = self.c5(x4)
 
@@ -244,9 +244,9 @@ class PAN_Layer(nn.Module):
 
         self.c1 = ConvBlock(in_c, out_c, 1, 1, "leaky")
         self.u2 = nn.Upsample(scale_factor=2, mode="nearest")
-        #Gets input from d4
+        # Gets input from d4
         self.c2_from_upsampled = ConvBlock(in_c, out_c, 1, 1, "leaky")
-        #We use stack in PAN, so 512
+        # We use stack in PAN, so 512
         self.c3 = ConvBlock(in_c, out_c, 1, 1, "leaky")
         self.c4 = ConvBlock(out_c, in_c, 3, 1, "leaky")
         self.c5 = ConvBlock(in_c, out_c, 1, 1, "leaky")
@@ -257,7 +257,7 @@ class PAN_Layer(nn.Module):
         x1 = self.c1(x_to_upsample)
         x2_1 = self.u2(x1)
         x2_2 = self.c2_from_upsampled(x_upsampled)
-        #First is not upsampled!
+        # First is not upsampled!
         x2 = torch.cat([x2_2, x2_1], dim=1)
         x3 = self.c3(x2)
         x4 = self.c4(x3)
@@ -268,14 +268,14 @@ class PAN_Layer(nn.Module):
 
 
 class Neck(nn.Module):
-    def __init__(self, spp_kernels = (5, 9, 13), PAN_layers = [512, 256]):
+    def __init__(self, spp_kernels=(5, 9, 13), PAN_layers=[512, 256]):
         super().__init__()
 
         self.c1 = ConvBlock(1024, 512, 1, 1, "leaky")
         self.c2 = ConvBlock(512, 1024, 3, 1, "leaky")
         self.c3 = ConvBlock(1024, 512, 1, 1, "leaky")
 
-        #SPP block
+        # SPP block
         self.mp4_1 = nn.MaxPool2d(kernel_size=spp_kernels[0], stride=1, padding=spp_kernels[0] // 2)
         self.mp4_2 = nn.MaxPool2d(kernel_size=spp_kernels[1], stride=1, padding=spp_kernels[1] // 2)
         self.mp4_3 = nn.MaxPool2d(kernel_size=spp_kernels[2], stride=1, padding=spp_kernels[2] // 2)
@@ -286,7 +286,7 @@ class Neck(nn.Module):
 
         self.PAN8 = PAN_Layer(PAN_layers[0])
         self.PAN9 = PAN_Layer(PAN_layers[1])
-    
+
     def forward(self, input):
         d5, d4, d3 = input
 
@@ -337,18 +337,19 @@ class HeadOutput(nn.Module):
         super().__init__()
         self.c1 = ConvBlock(in_channels, in_channels*2, 3, 1, "leaky")
         self.c2 = ConvBlock(in_channels*2, out_channels, 1, 1, "linear", bn=False, bias=True, dropblock=False)
-    
+
     def forward(self, x):
         x1 = self.c1(x)
         x2 = self.c2(x1)
         return x2
 
+
 class Head(nn.Module):
     def __init__(self, output_ch):
         super().__init__()
-        
+
         self.ho1 = HeadOutput(128, output_ch)
-        
+
         self.hp2 = HeadPreprocessing(128)
         self.ho2 = HeadOutput(256, output_ch)
 
@@ -371,7 +372,7 @@ class Head(nn.Module):
 class YOLOLayer(nn.Module):
     """Detection layer taken and modified from https://github.com/eriklindernoren/PyTorch-YOLOv3"""
 
-    def __init__(self, anchors, num_classes, img_dim=608, grid_size = None):
+    def __init__(self, anchors, num_classes, img_dim=608, grid_size=None):
         super(YOLOLayer, self).__init__()
         self.anchors = anchors
         self.num_anchors = len(anchors)
@@ -406,7 +407,7 @@ class YOLOLayer(nn.Module):
 
         nB = pred_boxes.size(0)
         nA = pred_boxes.size(1)
-        nC = pred_cls.size(-1)  
+        nC = pred_cls.size(-1)
         nG = pred_boxes.size(2)
 
         # Output tensors
@@ -439,13 +440,12 @@ class YOLOLayer(nn.Module):
         gw, gh = gwh.t()
         gi, gj = gxy.long().t()
 
-        #Setting target boxes to big grid, it would be used to count loss
+        # Setting target boxes to big grid, it would be used to count loss
         target_boxes_grid[b, best_n, gj, gi] = target_boxes
 
         # Set masks
         obj_mask[b, best_n, gj, gi] = 1
         noobj_mask[b, best_n, gj, gi] = 0
-
 
         # Set noobj mask to zero where iou exceeds ignore threshold
         for i, anchor_ious in enumerate(ious.t()):
@@ -475,11 +475,11 @@ class YOLOLayer(nn.Module):
         w1, h1 = wh1[0], wh1[1]
         w2, h2 = wh2[0], wh2[1]
         inter_area = torch.min(w1, w2) * torch.min(h1, h2)
-        union_area = (w1 * h1 +1e-16) + w2 * h2 - inter_area
+        union_area = (w1 * h1 + 1e-16) + w2 * h2 - inter_area
         return inter_area / union_area
 
 
-    def bbox_iou(self, box1, box2, x1y1x2y2=True, get_areas = False):
+    def bbox_iou(self, box1, box2, x1y1x2y2=True, get_areas=False):
         """
         Returns the IoU of two bounding boxes
         """
@@ -508,7 +508,6 @@ class YOLOLayer(nn.Module):
         b2_area = (b2_x2 - b2_x1 + 1) * (b2_y2 - b2_y1 + 1)
         union_area = (b1_area + b2_area - inter_area + 1e-16)
 
-
         if get_areas:
             return inter_area, union_area
 
@@ -516,7 +515,7 @@ class YOLOLayer(nn.Module):
         return iou
 
     def smallestenclosing(self, pred_boxes, target_boxes):
-        #Calculating smallest enclosing
+        # Calculating smallest enclosing
         targetxc = target_boxes[..., 0]
         targetyc = target_boxes[..., 1]
         targetwidth = target_boxes[..., 2]
@@ -526,7 +525,6 @@ class YOLOLayer(nn.Module):
         predyc = pred_boxes[..., 1]
         predwidth = pred_boxes[..., 2]
         predheight = pred_boxes[..., 3]
-
 
         xc1 = torch.min(predxc - (predwidth/2), targetxc - (targetwidth/2))
         yc1 = torch.min(predyc - (predheight/2), targetyc - (targetheight/2))
@@ -538,8 +536,6 @@ class YOLOLayer(nn.Module):
     def forward(self, x, targets=None):
         # Tensors for cuda support
         FloatTensor = torch.cuda.FloatTensor if x.is_cuda else torch.FloatTensor
-        LongTensor = torch.cuda.LongTensor if x.is_cuda else torch.LongTensor
-        ByteTensor = torch.cuda.ByteTensor if x.is_cuda else torch.ByteTensor
 
         num_samples = x.size(0)
         grid_size = x.size(2)
@@ -578,10 +574,10 @@ class YOLOLayer(nn.Module):
             -1,
         )
 
-        #OUTPUT IS ALL BOXES WITH THEIR CONFIDENCE AND WITH CLASS
+        # OUTPUT IS ALL BOXES WITH THEIR CONFIDENCE AND WITH CLASS
         if targets is None:
             return output, 0
-        
+
         iou, class_mask, obj_mask, noobj_mask, tx, ty, tw, th, tcls, tconf, target_boxes = self.build_targets(
                 pred_boxes=pred_boxes,
                 pred_cls=pred_cls,
@@ -589,25 +585,24 @@ class YOLOLayer(nn.Module):
                 anchors=self.scaled_anchors,
                 ignore_thres=self.ignore_thres
         )
-        
-        #Diagonal length of the smallest enclosing box (is already squared)
+
+        # Diagonal length of the smallest enclosing box (is already squared)
         xc1, yc1, xc2, yc2 = self.smallestenclosing(pred_boxes[obj_mask], target_boxes[obj_mask])
         c = ((xc2 - xc1) ** 2) + ((yc2 - yc1) ** 2) + 1e-7
 
-        #Euclidean distance between central points
+        # Euclidean distance between central points
         d = (tx[obj_mask] - x[obj_mask]) ** 2 + (ty[obj_mask] - y[obj_mask]) ** 2
 
         rDIoU = d/c
 
         iou_masked = iou[obj_mask]
 
-        v = (4 / (math.pi ** 2)) * torch.pow((torch.atan(tw[obj_mask]/th[obj_mask])-torch.atan(w[obj_mask]/h[obj_mask])),2)
+        v = (4 / (math.pi ** 2)) * torch.pow((torch.atan(tw[obj_mask]/th[obj_mask])-torch.atan(w[obj_mask]/h[obj_mask])), 2)
 
         with torch.no_grad():
             S = 1 - iou_masked
             alpha = v / (S + v + 1e-7)
 
-       
         CIoUloss = (1 - iou_masked + rDIoU + alpha * v).sum(0)/num_samples
 
         loss_conf_obj = F.binary_cross_entropy(pred_conf[obj_mask], tconf[obj_mask])
@@ -625,7 +620,7 @@ class YOLOLayer(nn.Module):
 
 
 class YOLOv4(nn.Module):
-    def __init__(self, in_channels = 3, n_classes = 80, weights_path=None, pretrained=False, img_dim=608, anchors=None):
+    def __init__(self, in_channels=3, n_classes=80, weights_path=None, pretrained=False, img_dim=608, anchors=None):
         super().__init__()
         if anchors is None:
             anchors = [[[10, 13], [16, 30], [33, 23]],
@@ -644,18 +639,17 @@ class YOLOv4(nn.Module):
         self.yolo1 = YOLOLayer(anchors[0], n_classes, img_dim)
         self.yolo2 = YOLOLayer(anchors[1], n_classes, img_dim)
         self.yolo3 = YOLOLayer(anchors[2], n_classes, img_dim)
-        
+
         if weights_path:
-            try: #If we change input or output layers amount, we will have an option to use pretrained weights
+            try:  # If we change input or output layers amount, we will have an option to use pretrained weights
                 self.load_state_dict(torch.load(weights_path), strict=False)
             except RuntimeError as e:
                 print(f'[Warning] Ignoring {e}')
         elif pretrained:
-            try: #If we change input or output layers amount, we will have an option to use pretrained weights
+            try:  # If we change input or output layers amount, we will have an option to use pretrained weights
                 self.load_state_dict(torch.hub.load_state_dict_from_url("https://github.com/VCasecnikovs/Yet-Another-YOLOv4-Pytorch/releases/download/V1.0/yolov4.pth"), strict=False)
             except RuntimeError as e:
                 print(f'[Warning] Ignoring {e}')
-
 
     def forward(self, x, y=None):
         b = self.backbone(x)
@@ -685,23 +679,12 @@ if __name__ == "__main__":
 
     model = YOLOv4().cuda().eval()
     x = torch.ones((1, 3, 608, 608)).cuda()
-    y = torch.from_numpy(np.asarray([[ 0, 1, 0.5, 0.5, 0.3, 0.3]])).float().cuda()
-    
-    
+    y = torch.from_numpy(np.asarray([[0, 1, 0.5, 0.5, 0.3, 0.3]])).float().cuda()
 
     for i in range(1):
         t0 = time.time()
-        y_hat, l = model(x, y)
+        y_hat, loss = model(x, y)
         t1 = time.time()
         print(t1 - t0)
-    
-    print(l)
 
-
-
-
-
-
-
-
-
+    print(loss)
