@@ -53,7 +53,7 @@ class YOLOv4PL(pl.LightningModule):
 
 
     def training_step(self, batch, batch_idx):
-        if hparams.SAT:
+        if self.hparams.SAT:
             pass
         else:
             return self.basic_training_step(batch)
