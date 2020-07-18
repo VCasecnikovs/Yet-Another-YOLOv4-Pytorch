@@ -101,4 +101,16 @@ dataset has collate_function
     #For first img
     arr = utils.get_img_with_bboxes(xb[0].cpu(), bboxes[0].cpu(), resize=False, labels=labels[0])
     Image.fromarray(arr)
-    
+
+## References
+In case if you missed:\
+Paper Yolo v4: https://arxiv.org/abs/2004.10934\
+Original repo: https://github.com/AlexeyAB/darknet#how-to-train-to-detect-your-custom-objects
+```
+@article{yolov4,
+  title={YOLOv4: YOLOv4: Optimal Speed and Accuracy of Object Detection},
+  author={Alexey Bochkovskiy, Chien-Yao Wang, Hong-Yuan Mark Liao},
+  journal = {arXiv},
+  year={2020}
+}
+```

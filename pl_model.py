@@ -47,7 +47,6 @@ class YOLOv4PL(pl.LightningModule):
         data_grad = images.grad.data
         images.requires_grad_(False)
         images = torch.clamp(images + data_grad.sign() * epsilon, 0, 1)
-
         return self.basic_training_step((filenames, images, labels))
 
         
