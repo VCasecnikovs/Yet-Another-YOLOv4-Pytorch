@@ -25,9 +25,9 @@ jobs:
     - name: Sort imports 
       run: |
         isort .            
-    - name: Check with mypy
-      run: |
-        mypy
+    #- name: Check with mypy
+    #  run: |
+    #    mypy
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
