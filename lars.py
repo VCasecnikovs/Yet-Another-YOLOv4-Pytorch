@@ -17,11 +17,6 @@ class LARS(Optimizer):
     Based on Algorithm 1 of the following paper by You, Gitman, and Ginsburg.
     Large Batch Training of Convolutional Networks:
         https://arxiv.org/abs/1708.03888
-    Example:
-        >>> optimizer = LARS(model.parameters(), lr=0.1, eta=1e-3)
-        >>> optimizer.zero_grad()
-        >>> loss_fn(model(input), target).backward()
-        >>> optimizer.step()
     """
     def __init__(self, params, lr=required, momentum=.9,
                  weight_decay=.0005, eta=0.001, max_epoch=200):
