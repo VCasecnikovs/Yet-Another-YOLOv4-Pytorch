@@ -92,7 +92,7 @@ cudnn.benchmark = True
 threshold = 0.2
 iou_threshold = 0.2
 
-m = YOLOv4(weights_path="weights/yolov4.pth")
+m = YOLOv4(pretrained=True, sam=False, eca=False)
 m.requires_grad_(False)
 m.eval()
 
