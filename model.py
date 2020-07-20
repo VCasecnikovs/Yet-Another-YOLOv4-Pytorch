@@ -117,10 +117,9 @@ class ECA(nn.Module):
 
 #Taken from https://github.com/joe-siyuan-qiao/WeightStandardization
 class Conv2dWS(nn.Conv2d):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
-                 padding=0, dilation=1, groups=1, bias=True):
-        super(Conv2d, self).__init__(in_channels, out_channels, kernel_size, stride,
-                 padding, dilation, groups, bias)
+    def __init__(self, *args, **kwargs):
+                 
+        super(nn.Conv2d, self).__init__(*args, **kwargs)
 
     def forward(self, x):
         weight = self.weight
@@ -143,7 +142,7 @@ class ConvBlock(nn.Module):
 
         modules: ty.List[ty.Union[nn.Module]] = []
         if ws:
-            modules.append(nn.Conv2dWS(in_channels, out_channels, kernel_size, stride, padding, bias=bias))            
+            modules.append(Conv2dWS(in_channels, out_channels, kernel_size, stride, padding, bias=bias))            
         else:
             modules.append(nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=bias))
         if bn:
