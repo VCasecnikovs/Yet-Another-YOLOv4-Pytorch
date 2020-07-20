@@ -90,7 +90,7 @@ class SAM(nn.Module):
         attention = torch.sigmoid(spatial_features)
         return attention.expand_as(x) * x
 
-#Got from https://arxiv.org/pdf/2003.13630.pdf
+#Got and modified from https://arxiv.org/pdf/2003.13630.pdf
 class FastGlobalAvgPool2d():
     def __init__(self, flatten=False):
         self.flatten = flatten
@@ -105,12 +105,12 @@ class FastGlobalAvgPool2d():
 class ECA(nn.Module):
     def __init__(self, channel, k_size=3):
         super().__init__()
-        self.avg_pool = FastGlobalAvgPool2d(flatten=True)
+        self.avg_pool = FastGlobalAvgPool2d(flatten=False)
         self.conv = nn.Conv1d(1, 1, kernel_size=k_size, padding=(k_size - 1) // 2, bias=False)
 
     def forward(self, x):
-        squized_channels = self.avg_pool()
-        channel_features = self.conv(squized_channels)
+        squized_channels = self.avg_pool(x)
+        channel_features = self.conv(squized_channels.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
         attention = torch.sigmoid(channel_features)
         return attention.expand_as(x) * x
 
