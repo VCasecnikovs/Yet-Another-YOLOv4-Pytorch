@@ -5,6 +5,9 @@ import torch.nn.functional as F
 # Need for Pi
 import math
 
+#Mypy
+import typing as ty
+
 # Model consists of
 # - backbone
 # - neck
@@ -77,16 +80,50 @@ class DropBlock2D(nn.Module):
         # print("After: ", torch.isnan(input * mask * mask.numel() /mask.sum()).sum())
         return input * mask * mask.numel() / mask.sum()
 
+class SAM(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels=1, kernel_size=1)
+
+    def forward(self, x):
+        spatial_features = self.conv(x)
+        attention = torch.sigmoid(spatial_features)
+        return attention.expand_as(x) * x
+
+#Got from https://arxiv.org/pdf/2003.13630.pdf
+class FastGlobalAvgPool2d():
+    def __init__(self, flatten=False):
+        self.flatten = flatten
+    def __call__(self, x):
+        if self.flatten:
+            in_size = x.size()
+            return x.view((in_size[0], in_size[1], -1)).mean(dim=2)
+        else:
+            return x.view(x.size(0), x.size(1), -1).mean(-1).view(x.size(0), x.size(1), 1, 1)
+
+#As an example was taken https://github.com/BangguWu/ECANet/blob/master/models/eca_module.py
+class ECA(nn.Module):
+    def __init__(self, channel, k_size=3):
+        super().__init__()
+        self.avg_pool = FastGlobalAvgPool2d(flatten=True)
+        self.conv = nn.Conv1d(1, 1, kernel_size=k_size, padding=(k_size - 1) // 2, bias=False)
+
+    def forward(self, x):
+        squized_channels = self.avg_pool()
+        channel_features = self.conv(squized_channels)
+        attention = torch.sigmoid(channel_features)
+        return attention.expand_as(x) * x
+
 
 # Taken and modified from https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/models.py
 class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, activation, bn=True, bias=False, dropblock=True):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, activation, bn=True, bias=False, dropblock=True, sam=False, eca=False):
         super().__init__()
 
         # PADDING is (ks-1)/2
         padding = (kernel_size - 1) // 2
 
-        modules = []
+        modules: ty.List[ty.Union[nn.Module]] = []
         modules.append(nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=bias))
         if bn:
             modules.append(nn.BatchNorm2d(out_channels))
@@ -101,6 +138,14 @@ class ConvBlock(nn.Module):
         else:
             raise BadArguments("Please use one of suggested activations: mish, relu, leaky, linear.")
 
+        self.use_sam = sam
+        if sam:
+            self.sam = SAM(out_channels)
+
+        self.use_eca = eca
+        if eca:
+            self.eca = ECA(out_channels)
+
         self.use_dropblock = dropblock
         if dropblock:
             self.dropblock = DropBlock2D()
@@ -109,6 +154,13 @@ class ConvBlock(nn.Module):
 
     def forward(self, x):
         y = self.module(x)
+
+        if self.use_sam:
+            y = self.sam(y)
+
+        if self.use_eca:
+            y = self.eca(y)
+
         if self.use_dropblock:
             y = self.dropblock(y)
         return y
@@ -125,14 +177,14 @@ class ResBlock(nn.Module):
         shortcut (bool): if True, residual tensor addition is enabled.
     """
     # Creating few conv blocks. One with kernel 3, second with kernel 1. With residual skip connection
-    def __init__(self, ch, nblocks=1, shortcut=True, dropblock=True):
+    def __init__(self, ch, nblocks=1, shortcut=True, dropblock=True, sam=False, eca=False):
         super().__init__()
         self.shortcut = shortcut
         self.module_list = nn.ModuleList()
         for i in range(nblocks):
             resblock_one = nn.ModuleList()
-            resblock_one.append(ConvBlock(ch, ch, 1, 1, 'mish'))
-            resblock_one.append(ConvBlock(ch, ch, 3, 1, 'mish'))
+            resblock_one.append(ConvBlock(ch, ch, 1, 1, 'mish', dropblock=dropblock, sam=sam, eca=eca))
+            resblock_one.append(ConvBlock(ch, ch, 3, 1, 'mish', dropblock=dropblock, sam=sam, eca=eca))
             self.module_list.append(resblock_one)
 
         if dropblock:
@@ -161,20 +213,20 @@ class DownSampleFirst(nn.Module):
     Args:
         in_channels (int): Amount of channels to input, if you use RGB, it should be 3
     """
-    def __init__(self, in_channels=3):
+    def __init__(self, in_channels=3, dropblock=True, sam=False, eca=False):
         super().__init__()
 
-        self.c1 = ConvBlock(in_channels, 32, 3, 1, "mish")
-        self.c2 = ConvBlock(32, 64, 3, 2, "mish")
-        self.c3 = ConvBlock(64, 64, 1, 1, "mish")
-        self.c4 = ConvBlock(64, 32, 1, 1, "mish")
-        self.c5 = ConvBlock(32, 64, 3, 1, "mish")
-        self.c6 = ConvBlock(64, 64, 1, 1, "mish")
+        self.c1 = ConvBlock(in_channels, 32, 3, 1, "mish", dropblock=dropblock, sam=sam, eca=eca)
+        self.c2 = ConvBlock(32, 64, 3, 2, "mish", dropblock=dropblock, sam=sam, eca=eca)
+        self.c3 = ConvBlock(64, 64, 1, 1, "mish", dropblock=dropblock, sam=sam, eca=eca)
+        self.c4 = ConvBlock(64, 32, 1, 1, "mish", dropblock=dropblock, sam=sam, eca=eca)
+        self.c5 = ConvBlock(32, 64, 3, 1, "mish", dropblock=dropblock, sam=sam, eca=eca)
+        self.c6 = ConvBlock(64, 64, 1, 1, "mish", dropblock=dropblock, sam=sam, eca=eca)
 
         # CSP Layer
-        self.dense_c3_c6 = ConvBlock(64, 64, 1, 1, "mish")
+        self.dense_c3_c6 = ConvBlock(64, 64, 1, 1, "mish", dropblock=dropblock, sam=sam, eca=eca)
 
-        self.c7 = ConvBlock(128, 64, 1, 1, "mish")
+        self.c7 = ConvBlock(128, 64, 1, 1, "mish", dropblock=dropblock, sam=sam, eca=eca)
 
     def forward(self, x):
         x1 = self.c1(x)
@@ -191,18 +243,18 @@ class DownSampleFirst(nn.Module):
 
 
 class DownSampleBlock(nn.Module):
-    def __init__(self, in_c, out_c, nblocks=2):
+    def __init__(self, in_c, out_c, nblocks=2, dropblock=True, sam=False, eca=False):
         super().__init__()
 
-        self.c1 = ConvBlock(in_c, out_c, 3, 2, "mish")
-        self.c2 = ConvBlock(out_c, in_c, 1, 1, "mish")
-        self.r3 = ResBlock(in_c, nblocks=nblocks)
-        self.c4 = ConvBlock(in_c, in_c, 1, 1, "mish")
+        self.c1 = ConvBlock(in_c, out_c, 3, 2, "mish", dropblock=dropblock, sam=sam, eca=eca)
+        self.c2 = ConvBlock(out_c, in_c, 1, 1, "mish", dropblock=dropblock, sam=sam, eca=eca)
+        self.r3 = ResBlock(in_c, nblocks=nblocks, dropblock=dropblock, sam=sam, eca=eca)
+        self.c4 = ConvBlock(in_c, in_c, 1, 1, "mish", dropblock=dropblock, sam=sam, eca=eca)
 
         # CSP Layer
-        self.dense_c2_c4 = ConvBlock(out_c, in_c, 1, 1, "mish")
+        self.dense_c2_c4 = ConvBlock(out_c, in_c, 1, 1, "mish", dropblock=dropblock, sam=sam, eca=eca)
 
-        self.c5 = ConvBlock(out_c, out_c, 1, 1, "mish")
+        self.c5 = ConvBlock(out_c, out_c, 1, 1, "mish", dropblock=dropblock, sam=sam, eca=eca)
 
     def forward(self, x):
         x1 = self.c1(x)
@@ -217,14 +269,14 @@ class DownSampleBlock(nn.Module):
 
 
 class Backbone(nn.Module):
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, dropblock=True, sam=False, eca=False):
         super().__init__()
 
-        self.d1 = DownSampleFirst(in_channels=in_channels)
-        self.d2 = DownSampleBlock(64, 128, nblocks=2)
-        self.d3 = DownSampleBlock(128, 256, nblocks=8)
-        self.d4 = DownSampleBlock(256, 512, nblocks=8)
-        self.d5 = DownSampleBlock(512, 1024, nblocks=4)
+        self.d1 = DownSampleFirst(in_channels=in_channels, dropblock=dropblock, sam=sam, eca=eca)
+        self.d2 = DownSampleBlock(64, 128, nblocks=2, dropblock=dropblock, sam=sam, eca=eca)
+        self.d3 = DownSampleBlock(128, 256, nblocks=8, dropblock=dropblock, sam=sam, eca=eca)
+        self.d4 = DownSampleBlock(256, 512, nblocks=8, dropblock=dropblock, sam=sam, eca=eca)
+        self.d5 = DownSampleBlock(512, 1024, nblocks=4, dropblock=dropblock, sam=sam, eca=eca)
 
     def forward(self, x):
         x1 = self.d1(x)
@@ -236,22 +288,22 @@ class Backbone(nn.Module):
 
 
 class PAN_Layer(nn.Module):
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, dropblock=True, sam=False, eca=False):
         super().__init__()
 
         in_c = in_channels
         out_c = in_c // 2
 
-        self.c1 = ConvBlock(in_c, out_c, 1, 1, "leaky")
+        self.c1 = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
         self.u2 = nn.Upsample(scale_factor=2, mode="nearest")
         # Gets input from d4
-        self.c2_from_upsampled = ConvBlock(in_c, out_c, 1, 1, "leaky")
+        self.c2_from_upsampled = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
         # We use stack in PAN, so 512
-        self.c3 = ConvBlock(in_c, out_c, 1, 1, "leaky")
-        self.c4 = ConvBlock(out_c, in_c, 3, 1, "leaky")
-        self.c5 = ConvBlock(in_c, out_c, 1, 1, "leaky")
-        self.c6 = ConvBlock(out_c, in_c, 3, 1, "leaky")
-        self.c7 = ConvBlock(in_c, out_c, 1, 1, "leaky")
+        self.c3 = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
+        self.c4 = ConvBlock(out_c, in_c, 3, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
+        self.c5 = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
+        self.c6 = ConvBlock(out_c, in_c, 3, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
+        self.c7 = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
 
     def forward(self, x_to_upsample, x_upsampled):
         x1 = self.c1(x_to_upsample)
@@ -268,21 +320,21 @@ class PAN_Layer(nn.Module):
 
 
 class Neck(nn.Module):
-    def __init__(self, spp_kernels=(5, 9, 13), PAN_layers=[512, 256]):
+    def __init__(self, spp_kernels=(5, 9, 13), PAN_layers=[512, 256], dropblock=True, sam=False, eca=False):
         super().__init__()
 
-        self.c1 = ConvBlock(1024, 512, 1, 1, "leaky")
-        self.c2 = ConvBlock(512, 1024, 3, 1, "leaky")
-        self.c3 = ConvBlock(1024, 512, 1, 1, "leaky")
+        self.c1 = ConvBlock(1024, 512, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
+        self.c2 = ConvBlock(512, 1024, 3, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
+        self.c3 = ConvBlock(1024, 512, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
 
         # SPP block
         self.mp4_1 = nn.MaxPool2d(kernel_size=spp_kernels[0], stride=1, padding=spp_kernels[0] // 2)
         self.mp4_2 = nn.MaxPool2d(kernel_size=spp_kernels[1], stride=1, padding=spp_kernels[1] // 2)
         self.mp4_3 = nn.MaxPool2d(kernel_size=spp_kernels[2], stride=1, padding=spp_kernels[2] // 2)
 
-        self.c5 = ConvBlock(2048, 512, 1, 1, "leaky")
-        self.c6 = ConvBlock(512, 1024, 3, 1, "leaky")
-        self.c7 = ConvBlock(1024, 512, 1, 1, "leaky")
+        self.c5 = ConvBlock(2048, 512, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
+        self.c6 = ConvBlock(512, 1024, 3, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
+        self.c7 = ConvBlock(1024, 512, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
 
         self.PAN8 = PAN_Layer(PAN_layers[0])
         self.PAN9 = PAN_Layer(PAN_layers[1])
@@ -310,15 +362,15 @@ class Neck(nn.Module):
 
 
 class HeadPreprocessing(nn.Module):
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, dropblock=True, sam=False, eca=False):
         super().__init__()
         ic = in_channels
-        self.c1 = ConvBlock(ic, ic*2, 3, 2, 'leaky')
-        self.c2 = ConvBlock(ic*4, ic*2, 1, 1, 'leaky')
-        self.c3 = ConvBlock(ic*2, ic*4, 3, 1, 'leaky')
-        self.c4 = ConvBlock(ic*4, ic*2, 1, 1, 'leaky')
-        self.c5 = ConvBlock(ic*2, ic*4, 3, 1, 'leaky')
-        self.c6 = ConvBlock(ic*4, ic*2, 1, 1, 'leaky')
+        self.c1 = ConvBlock(ic, ic*2, 3, 2, 'leaky', dropblock=dropblock, sam=sam, eca=eca)
+        self.c2 = ConvBlock(ic*4, ic*2, 1, 1, 'leaky', dropblock=dropblock, sam=sam, eca=eca)
+        self.c3 = ConvBlock(ic*2, ic*4, 3, 1, 'leaky', dropblock=dropblock, sam=sam, eca=eca)
+        self.c4 = ConvBlock(ic*4, ic*2, 1, 1, 'leaky', dropblock=dropblock, sam=sam, eca=eca)
+        self.c5 = ConvBlock(ic*2, ic*4, 3, 1, 'leaky', dropblock=dropblock, sam=sam, eca=eca)
+        self.c6 = ConvBlock(ic*4, ic*2, 1, 1, 'leaky', dropblock=dropblock, sam=sam, eca=eca)
 
     def forward(self, input, input_prev):
         x1 = self.c1(input_prev)
@@ -333,9 +385,9 @@ class HeadPreprocessing(nn.Module):
 
 
 class HeadOutput(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, dropblock=True, sam=False, eca=False):
         super().__init__()
-        self.c1 = ConvBlock(in_channels, in_channels*2, 3, 1, "leaky")
+        self.c1 = ConvBlock(in_channels, in_channels*2, 3, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca)
         self.c2 = ConvBlock(in_channels*2, out_channels, 1, 1, "linear", bn=False, bias=True, dropblock=False)
 
     def forward(self, x):
@@ -345,16 +397,16 @@ class HeadOutput(nn.Module):
 
 
 class Head(nn.Module):
-    def __init__(self, output_ch):
+    def __init__(self, output_ch, dropblock=True, sam=False, eca=False):
         super().__init__()
 
-        self.ho1 = HeadOutput(128, output_ch)
+        self.ho1 = HeadOutput(128, output_ch, dropblock=dropblock, sam=sam, eca=eca)
 
-        self.hp2 = HeadPreprocessing(128)
-        self.ho2 = HeadOutput(256, output_ch)
+        self.hp2 = HeadPreprocessing(128, dropblock=dropblock, sam=sam, eca=eca)
+        self.ho2 = HeadOutput(256, output_ch, dropblock=dropblock, sam=sam, eca=eca)
 
-        self.hp3 = HeadPreprocessing(256)
-        self.ho3 = HeadOutput(512, output_ch)
+        self.hp3 = HeadPreprocessing(256, dropblock=dropblock, sam=sam, eca=eca)
+        self.ho3 = HeadOutput(512, output_ch, dropblock=dropblock, sam=sam, eca=eca)
 
     def forward(self, input):
         input1, input2, input3 = input
@@ -620,7 +672,7 @@ class YOLOLayer(nn.Module):
 
 
 class YOLOv4(nn.Module):
-    def __init__(self, in_channels=3, n_classes=80, weights_path=None, pretrained=False, img_dim=608, anchors=None):
+    def __init__(self, in_channels=3, n_classes=80, weights_path=None, pretrained=False, img_dim=608, anchors=None, dropblock=True, sam=False, eca=False):
         super().__init__()
         if anchors is None:
             anchors = [[[10, 13], [16, 30], [33, 23]],
@@ -630,11 +682,11 @@ class YOLOv4(nn.Module):
         output_ch = (4 + 1 + n_classes) * 3
         self.img_dim = img_dim
 
-        self.backbone = Backbone(in_channels)
+        self.backbone = Backbone(in_channels, dropblock=dropblock, sam=sam, eca=eca)
 
-        self.neck = Neck()
+        self.neck = Neck(dropblock=dropblock, sam=sam, eca=eca)
 
-        self.head = Head(output_ch)
+        self.head = Head(output_ch, dropblock=dropblock, sam=sam, eca=eca)
 
         self.yolo1 = YOLOLayer(anchors[0], n_classes, img_dim)
         self.yolo2 = YOLOLayer(anchors[1], n_classes, img_dim)

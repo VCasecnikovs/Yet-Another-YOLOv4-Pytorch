@@ -15,6 +15,8 @@ This is implementation of YOLOv4 object detection neural network on pytorch. I'l
  - [x] LARS optimizer
  - [x] Pytorch lightning
  - [x] Self adversial attack
+ - [x] SAM attention block from official YOLOv4 paper
+ - [x] ECA attention block from https://arxiv.org/abs/1910.03151 with fastglobalavgpool from https://arxiv.org/pdf/2003.13630.pdf
  - [ ] Notebook with guide
 
 

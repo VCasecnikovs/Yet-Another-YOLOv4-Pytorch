@@ -1,6 +1,14 @@
 *.pth
+*.ipynb
+*.pickle
+*.log
+*.rar
+*.txt
+*.code-workspace
 /__pycache__
 /.ipynb_checkpoints
 /.virtual_documents
 /labels
 /images
+/.mypy_cache
+/%USERPROFILE%
