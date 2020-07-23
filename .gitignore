@@ -1,5 +1,4 @@
 *.pth
-*.ipynb
 *.pickle
 *.log
 *.rar
