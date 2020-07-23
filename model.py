@@ -115,7 +115,7 @@ class ECA(nn.Module):
         return attention.expand_as(x) * x
 
 
-#Taken from https://github.com/joe-siyuan-qiao/WeightStandardization
+#Taken from https://github.com/joe-siyuan-qiao/WeightStandardization modified with new std https://github.com/joe-siyuan-qiao/WeightStandardization/issues/1#issuecomment-528050344
 class Conv2dWS(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                  padding=0, dilation=1, groups=1, bias=True):
@@ -123,12 +123,19 @@ class Conv2dWS(nn.Conv2d):
                  padding, dilation, groups, bias)
 
     def forward(self, x):
+        # print("IN: ", (~torch.isfinite(x)).sum())
         weight = self.weight
         weight_mean = weight.mean(dim=1, keepdim=True).mean(dim=2,
                                   keepdim=True).mean(dim=3, keepdim=True)
         weight = weight - weight_mean
-        std = weight.view(weight.size(0), -1).std(dim=1).view(-1, 1, 1, 1) + 1e-5
+        std = torch.sqrt(torch.var(weight.view(weight.size(0), -1), dim=1) + 1e-12).view(-1, 1, 1, 1) + 1e-5
+        # print("Weights_mean: ", (~torch.isfinite(weight_mean)).sum())
+        # print("STD: ", (~torch.isfinite(std)).sum())
         weight = weight / std.expand_as(weight)
+        # print("Weights after: ", (~torch.isfinite(weight)).sum())
+        # print("BIAS: ", self.bias, "STRIDE: ", self.stride, "PADDING: ", self.padding, "DILATION: ", self.dilation, "GROUPS: ", self.groups)
+        # print("OUT: ", (~torch.isfinite(F.conv2d(x, weight, self.bias, self.stride,
+        #                 self.padding, self.dilation, self.groups))).sum())
         return F.conv2d(x, weight, self.bias, self.stride,
                         self.padding, self.dilation, self.groups)
 
@@ -220,7 +227,6 @@ class ResBlock(nn.Module):
             for res in module:
                 h = res(h)
             x = x + h if self.shortcut else h
-
             if self.use_dropblock:
                 x = self.dropblock(x)
 
@@ -408,8 +414,8 @@ class HeadPreprocessing(nn.Module):
 class HeadOutput(nn.Module):
     def __init__(self, in_channels, out_channels, dropblock=True, sam=False, eca=False, ws=False):
         super().__init__()
-        self.c1 = ConvBlock(in_channels, in_channels*2, 3, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
-        self.c2 = ConvBlock(in_channels*2, out_channels, 1, 1, "linear", bn=False, bias=True, dropblock=False)
+        self.c1 = ConvBlock(in_channels, in_channels*2, 3, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=False)
+        self.c2 = ConvBlock(in_channels*2, out_channels, 1, 1, "linear", bn=False, bias=True, dropblock=False, sam=False, eca=False, ws=False)
 
     def forward(self, x):
         x1 = self.c1(x)
@@ -669,7 +675,6 @@ class YOLOLayer(nn.Module):
         rDIoU = d/c
 
         iou_masked = iou[obj_mask]
-
         v = (4 / (math.pi ** 2)) * torch.pow((torch.atan(tw[obj_mask]/th[obj_mask])-torch.atan(w[obj_mask]/h[obj_mask])), 2)
 
         with torch.no_grad():
@@ -677,7 +682,7 @@ class YOLOLayer(nn.Module):
             alpha = v / (S + v + 1e-7)
 
         CIoUloss = (1 - iou_masked + rDIoU + alpha * v).sum(0)/num_samples
-
+        # print(torch.isnan(pred_conf).sum())
         loss_conf_obj = F.binary_cross_entropy(pred_conf[obj_mask], tconf[obj_mask])
         loss_conf_noobj = F.binary_cross_entropy(pred_conf[noobj_mask], tconf[noobj_mask])
         loss_conf = self.obj_scale * loss_conf_obj + self.noobj_scale * loss_conf_noobj

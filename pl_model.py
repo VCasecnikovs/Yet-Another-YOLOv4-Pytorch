@@ -17,7 +17,7 @@ class YOLOv4PL(pl.LightningModule):
         self.train_ds = ListDataset(hparams.train_ds, train=True)
         self.valid_ds = ListDataset(hparams.valid_ds, train=False)
 
-        self.model = YOLOv4(n_classes=5, pretrained=True).cuda()
+        self.model = YOLOv4(n_classes=5, pretrained=True, dropblock=hparams.Dropblock, sam=hparams.SAM, eca=hparams.ECA, ws=hparams.WS).cuda()
 
     def train_dataloader(self):
         train_dl = DataLoader(self.train_ds, batch_size=self.hparams.bs, collate_fn=self.train_ds.collate_fn, pin_memory=True)
@@ -33,7 +33,6 @@ class YOLOv4PL(pl.LightningModule):
     def basic_training_step(self, batch):
         filenames, images, labels = batch
         y_hat, loss = self(images, labels)
-
         logger_logs = {"training_loss": loss}
 
         return {"loss": loss, "log": logger_logs}
@@ -51,7 +50,7 @@ class YOLOv4PL(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         if self.hparams.SAT:
-            pass
+            return self.sat_training_step(batch, self.hparams.epsilon)
         else:
             return self.basic_training_step(batch)
 
