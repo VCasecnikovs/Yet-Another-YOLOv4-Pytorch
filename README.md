@@ -18,7 +18,7 @@ This is implementation of YOLOv4 object detection neural network on pytorch. I'l
  - [x] SAM attention block from official YOLOv4 paper
  - [x] ECA attention block from https://arxiv.org/abs/1910.03151 with fastglobalavgpool from https://arxiv.org/pdf/2003.13630.pdf
  - [x] Weight standartization from https://arxiv.org/abs/1903.10520 (Do not suggest to use with pretrained, could lead to input explosion)
- - [ ] Notebook with guide
+ - [x] Notebook with guide
 
 
 ## What you can already do
