@@ -17,7 +17,7 @@ class YOLOv4PL(pl.LightningModule):
         self.train_ds = ListDataset(hparams.train_ds, train=True)
         self.valid_ds = ListDataset(hparams.valid_ds, train=False)
 
-        self.model = YOLOv4(n_classes=5, pretrained=True, dropblock=hparams.Dropblock, sam=hparams.SAM, eca=hparams.ECA, ws=hparams.WS).cuda()
+        self.model = YOLOv4(n_classes=5, pretrained=hparams.pretrained, dropblock=hparams.Dropblock, sam=hparams.SAM, eca=hparams.ECA, ws=hparams.WS).cuda()
 
     def train_dataloader(self):
         train_dl = DataLoader(self.train_ds, batch_size=self.hparams.bs, collate_fn=self.train_ds.collate_fn, pin_memory=True)

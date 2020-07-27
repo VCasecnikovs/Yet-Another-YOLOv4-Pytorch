@@ -128,14 +128,8 @@ class Conv2dWS(nn.Conv2d):
         weight_mean = weight.mean(dim=1, keepdim=True).mean(dim=2,
                                   keepdim=True).mean(dim=3, keepdim=True)
         weight = weight - weight_mean
-        std = torch.sqrt(torch.var(weight.view(weight.size(0), -1), dim=1) + 1e-12).view(-1, 1, 1, 1) + 1e-5
-        # print("Weights_mean: ", (~torch.isfinite(weight_mean)).sum())
-        # print("STD: ", (~torch.isfinite(std)).sum())
+        std = torch.sqrt(torch.var(weight.view(weight.size(0), -1), dim=1) + 2e-5).view(-1, 1, 1, 1) + 1e-5
         weight = weight / std.expand_as(weight)
-        # print("Weights after: ", (~torch.isfinite(weight)).sum())
-        # print("BIAS: ", self.bias, "STRIDE: ", self.stride, "PADDING: ", self.padding, "DILATION: ", self.dilation, "GROUPS: ", self.groups)
-        # print("OUT: ", (~torch.isfinite(F.conv2d(x, weight, self.bias, self.stride,
-        #                 self.padding, self.dilation, self.groups))).sum())
         return F.conv2d(x, weight, self.bias, self.stride,
                         self.padding, self.dilation, self.groups)
 
@@ -154,7 +148,7 @@ class ConvBlock(nn.Module):
         else:
             modules.append(nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=bias))
         if bn:
-            modules.append(nn.BatchNorm2d(out_channels))
+            modules.append(nn.BatchNorm2d(out_channels, track_running_stats=not ws)) #IF WE ARE NOT USING track running stats and using WS, it just explodes.
         if activation == "mish":
             modules.append(Mish())
         elif activation == "relu":
@@ -166,31 +160,19 @@ class ConvBlock(nn.Module):
         else:
             raise BadArguments("Please use one of suggested activations: mish, relu, leaky, linear.")
 
-        self.use_sam = sam
         if sam:
-            self.sam = SAM(out_channels)
+            modules.append(SAM(out_channels))
 
-        self.use_eca = eca
         if eca:
-            self.eca = ECA(out_channels)
+            modules.append(ECA(out_channels))
 
-        self.use_dropblock = dropblock
         if dropblock:
-            self.dropblock = DropBlock2D()
+            modules.append(DropBlock2D())
 
         self.module = nn.Sequential(*modules)
 
     def forward(self, x):
         y = self.module(x)
-
-        if self.use_sam:
-            y = self.sam(y)
-
-        if self.use_eca:
-            y = self.eca(y)
-
-        if self.use_dropblock:
-            y = self.dropblock(y)
         return y
 
 
