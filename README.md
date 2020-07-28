@@ -74,7 +74,8 @@ dataset has collate_function
 	# yb has 6 columns
 	
 ## Y's format
- 1. Num of img to which this anchor belongs
+Is a tensor of size (A, 6), where A is amount of anchors in the batch.
+ 1. Index of img to which this anchor belongs (if 1, then it belongs to x[1])
  2. BBox class
  3. x center
  4. y center
