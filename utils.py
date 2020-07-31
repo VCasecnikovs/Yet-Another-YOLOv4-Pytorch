@@ -115,6 +115,25 @@ def nms_with_depth(bboxes, confidence, iou_threshold, depth_layer, depth_thresho
     
     return confidence != 0
 
+def matrix_nms(boxes, confidence, iou_threshold, batch_size, method):
+    boxes = boxes.reshape(batch_size, -1)
+    intersection = torch.mm(boxes, boxes.T)
+    areas = masks.sum(dim=1).expand(N, N)
+    union = areas + areas.T - intersection
+    ious = (intersection / union).triu(diagonal=1)
+
+    ious_cmax = ious.max(0)
+    ious_cmax = ious_cmax.expand(N, N).T
+
+    if method == "gauss": # gaussian
+        decay = exp(-(iousˆ2 - ious_cmaxˆ2) / sigma)
+    else: # linear
+        decay = (1 - ious) / (1 - ious_cmax)
+
+    decay = decay.min(dim=0)
+    return scores * decay
+
+
 
 
 def get_bboxes_from_anchors(anchors, confidence_threshold, iou_threshold, labels_dict, depth_layer = None, depth_threshold = 0.1):
