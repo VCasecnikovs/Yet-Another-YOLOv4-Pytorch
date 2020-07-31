@@ -14,13 +14,21 @@ This is implementation of YOLOv4 object detection neural network on pytorch. I'l
  - [x] Dropblock layers for training. One in each PAN layer, but you can easily add it to each layer. (Thanks to Evgenii Zheltonozhskii for pytorch implementation)
  - [x] LARS optimizer
  - [x] Pytorch lightning
- - [x] Self adversial training
+ - [x] Self adversial training with fgsm
  - [x] SAM attention block from official YOLOv4 paper
  - [x] ECA attention block from https://arxiv.org/abs/1910.03151 with fastglobalavgpool from https://arxiv.org/pdf/2003.13630.pdf
  - [x] Weight standartization from https://arxiv.org/abs/1903.10520 (Do not suggest to use with pretrained, could lead to an input explosion, used with track_running_stats, otherwise explosion)
  - [x] Notebook with guide
+ - [ ] IoU Aware from https://arxiv.org/abs/2007.12099
+ - [x] NMS in Depth implementation
+ - [ ] Matrix NMS algorithm from https://arxiv.org/abs/2007.12099
+ - [ ] Deformable convolutions from https://arxiv.org/abs/2007.12099
+ - [ ] Coord convolutions from https://arxiv.org/abs/2007.12099
+ - [ ] Self adversial training with vanila grad
 
 
+
+ 
 ## What you can already do
 You can use video_demo.py to take a look at the original weights realtime OD detection. (Have 9 fps on my GTX1060 laptop!!!)
 ![](/github_imgs/realtime.jpg)

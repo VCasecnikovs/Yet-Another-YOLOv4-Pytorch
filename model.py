@@ -433,7 +433,7 @@ class Head(nn.Module):
 class YOLOLayer(nn.Module):
     """Detection layer taken and modified from https://github.com/eriklindernoren/PyTorch-YOLOv3"""
 
-    def __init__(self, anchors, num_classes, img_dim=608, grid_size=None):
+    def __init__(self, anchors, num_classes, img_dim=608, grid_size=None, iou_aware=False):
         super(YOLOLayer, self).__init__()
         self.anchors = anchors
         self.num_anchors = len(anchors)
@@ -613,7 +613,11 @@ class YOLOLayer(nn.Module):
         w = prediction[..., 2]  # Width
         h = prediction[..., 3]  # Height
         pred_conf = torch.sigmoid(prediction[..., 4])  # Conf
-        pred_cls = torch.sigmoid(prediction[..., 5:])  # Cls pred.
+        if not iou_aware:
+            pred_cls = torch.sigmoid(prediction[..., 5:])  # Cls pred
+        else:
+            pred_cls = torch.sigmoid(prediction[..., 5:-1])# Cls pred
+            pred_iou = torch.sigmoid(prediction[..., -1]) #IoU pred
 
         # If grid size does not match current we compute new offsets
         if grid_size != self.grid_size or self.grid_x.is_cuda != x.is_cuda:
@@ -672,6 +676,10 @@ class YOLOLayer(nn.Module):
         loss_cls = F.binary_cross_entropy(input=pred_cls[obj_mask], target=tcls[obj_mask])
 
         total_loss = CIoUloss + loss_cls + loss_conf
+
+        if iou_aware:
+            pred_iou_masked = pred_iou[obj_mask]
+            total_loss = F.mse_loss(pred_iou_masked, iou_masked)
         # print(f"C: {c}; D: {d}")
         # print(f"Confidence is object: {loss_conf_obj}, Confidence no object: {loss_conf_noobj}")
         # print(f"IoU: {iou_masked}; DIoU: {rDIoU}; alpha: {alpha}; v: {v}")
@@ -680,7 +688,7 @@ class YOLOLayer(nn.Module):
 
 
 class YOLOv4(nn.Module):
-    def __init__(self, in_channels=3, n_classes=80, weights_path=None, pretrained=False, img_dim=608, anchors=None, dropblock=True, sam=False, eca=False, ws=False):
+    def __init__(self, in_channels=3, n_classes=80, weights_path=None, pretrained=False, img_dim=608, anchors=None, dropblock=True, sam=False, eca=False, ws=False, iou_aware=False):
         super().__init__()
         if anchors is None:
             anchors = [[[10, 13], [16, 30], [33, 23]],
@@ -688,6 +696,9 @@ class YOLOv4(nn.Module):
                        [[116, 90], [156, 198], [373, 326]]]
 
         output_ch = (4 + 1 + n_classes) * 3
+        if iou_aware:
+            output_ch += 1 #1 for iou
+
         self.img_dim = img_dim
 
         self.backbone = Backbone(in_channels, dropblock=False, sam=sam, eca=eca, ws=ws)
@@ -696,9 +707,9 @@ class YOLOv4(nn.Module):
 
         self.head = Head(output_ch, dropblock=False, sam=sam, eca=eca, ws=ws)
 
-        self.yolo1 = YOLOLayer(anchors[0], n_classes, img_dim)
-        self.yolo2 = YOLOLayer(anchors[1], n_classes, img_dim)
-        self.yolo3 = YOLOLayer(anchors[2], n_classes, img_dim)
+        self.yolo1 = YOLOLayer(anchors[0], n_classes, img_dim, iou_aware=iou_aware)
+        self.yolo2 = YOLOLayer(anchors[1], n_classes, img_dim, iou_aware=iou_aware)
+        self.yolo3 = YOLOLayer(anchors[2], n_classes, img_dim, iou_aware=iou_aware)
 
         if weights_path:
             try:  # If we change input or output layers amount, we will have an option to use pretrained weights
