@@ -136,7 +136,7 @@ class Conv2dWS(nn.Conv2d):
 
 # Taken and modified from https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/models.py
 class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, activation, bn=True, bias=False, dropblock=True, sam=False, eca=False, ws=False):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, activation, bn=True, bias=False, dropblock=False, sam=False, eca=False, ws=False):
         super().__init__()
 
         # PADDING is (ks-1)/2
@@ -306,13 +306,13 @@ class PAN_Layer(nn.Module):
         self.c1 = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
         self.u2 = nn.Upsample(scale_factor=2, mode="nearest")
         # Gets input from d4
-        self.c2_from_upsampled = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
+        self.c2_from_upsampled = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=ws)
         # We use stack in PAN, so 512
-        self.c3 = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
+        self.c3 = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=ws)
         self.c4 = ConvBlock(out_c, in_c, 3, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
-        self.c5 = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
-        self.c6 = ConvBlock(out_c, in_c, 3, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
-        self.c7 = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
+        self.c5 = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=ws)
+        self.c6 = ConvBlock(out_c, in_c, 3, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=ws)
+        self.c7 = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=ws)
 
     def forward(self, x_to_upsample, x_upsampled):
         x1 = self.c1(x_to_upsample)
@@ -332,21 +332,21 @@ class Neck(nn.Module):
     def __init__(self, spp_kernels=(5, 9, 13), PAN_layers=[512, 256], dropblock=True, sam=False, eca=False, ws=False):
         super().__init__()
 
-        self.c1 = ConvBlock(1024, 512, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
-        self.c2 = ConvBlock(512, 1024, 3, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
-        self.c3 = ConvBlock(1024, 512, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
+        self.c1 = ConvBlock(1024, 512, 1, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=ws)
+        self.c2 = ConvBlock(512, 1024, 3, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=ws)
+        self.c3 = ConvBlock(1024, 512, 1, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=ws)
 
         # SPP block
         self.mp4_1 = nn.MaxPool2d(kernel_size=spp_kernels[0], stride=1, padding=spp_kernels[0] // 2)
         self.mp4_2 = nn.MaxPool2d(kernel_size=spp_kernels[1], stride=1, padding=spp_kernels[1] // 2)
         self.mp4_3 = nn.MaxPool2d(kernel_size=spp_kernels[2], stride=1, padding=spp_kernels[2] // 2)
 
-        self.c5 = ConvBlock(2048, 512, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
+        self.c5 = ConvBlock(2048, 512, 1, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=ws)
         self.c6 = ConvBlock(512, 1024, 3, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
-        self.c7 = ConvBlock(1024, 512, 1, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws)
+        self.c7 = ConvBlock(1024, 512, 1, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=ws)
 
-        self.PAN8 = PAN_Layer(PAN_layers[0])
-        self.PAN9 = PAN_Layer(PAN_layers[1])
+        self.PAN8 = PAN_Layer(PAN_layers[0], dropblock=dropblock, sam=sam, eca=eca, ws=ws)
+        self.PAN9 = PAN_Layer(PAN_layers[1], dropblock=dropblock, sam=sam, eca=eca, ws=ws)
 
     def forward(self, input):
         d5, d4, d3 = input
@@ -690,11 +690,11 @@ class YOLOv4(nn.Module):
         output_ch = (4 + 1 + n_classes) * 3
         self.img_dim = img_dim
 
-        self.backbone = Backbone(in_channels, dropblock=dropblock, sam=sam, eca=eca, ws=ws)
+        self.backbone = Backbone(in_channels, dropblock=False, sam=sam, eca=eca, ws=ws)
 
         self.neck = Neck(dropblock=dropblock, sam=sam, eca=eca, ws=ws)
 
-        self.head = Head(output_ch, dropblock=dropblock, sam=sam, eca=eca, ws=ws)
+        self.head = Head(output_ch, dropblock=False, sam=sam, eca=eca, ws=ws)
 
         self.yolo1 = YOLOLayer(anchors[0], n_classes, img_dim)
         self.yolo2 = YOLOLayer(anchors[1], n_classes, img_dim)

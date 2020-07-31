@@ -11,7 +11,7 @@ This is implementation of YOLOv4 object detection neural network on pytorch. I'l
  - [x] Letterbox for validation
  - [x] HSV transforms for train
  - [x] MOSAIC for train
- - [x] Dropblock layers for training. After convblock and after residual block. (Thanks to Evgenii Zheltonozhskii for pytorch implementation)
+ - [x] Dropblock layers for training. One in each PAN layer, but you can easily add it to each layer. (Thanks to Evgenii Zheltonozhskii for pytorch implementation)
  - [x] LARS optimizer
  - [x] Pytorch lightning
  - [x] Self adversial training
