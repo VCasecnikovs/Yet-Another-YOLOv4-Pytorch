@@ -118,7 +118,7 @@ def nms_with_depth(bboxes, confidence, iou_threshold, depth_layer, depth_thresho
 def matrix_nms(boxes, confidence, iou_threshold, batch_size, method, sigma, N):
     boxes = boxes.reshape(batch_size, -1)
     intersection = torch.mm(boxes, boxes.T)
-    areas = masks.sum(dim=1).expand(N, N)
+    areas = boxes.sum(dim=1).expand(N, N)
     union = areas + areas.T - intersection
     ious = (intersection / union).triu(diagonal=1)
 
