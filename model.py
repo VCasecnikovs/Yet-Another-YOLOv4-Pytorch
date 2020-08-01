@@ -133,16 +133,43 @@ class Conv2dWS(nn.Conv2d):
         return F.conv2d(x, weight, self.bias, self.stride,
                         self.padding, self.dilation, self.groups)
 
+# From https://arxiv.org/pdf/2003.10152.pdf
+class AddCoordChannels(nn.Module):
+    def __init__(self, w=9, h=9, b=1):
+        super().__init__()
+        self.w = w
+        self.h = h
+        self.x_coords = torch.linspace(-1, 1, steps=w).unsqueeze(0).expand(w, h)
+        self.y_coords = torch.linspace(-1, 1, steps=h).unsquueze(1).expand(w, h)
+        self.b = b
+
+    def forward(self, x):
+        b, c, w, h = x.shape
+        if w != self.w or h != self.h or b != self.b:
+            self.x_coords = torch.linspace(-1, 1, steps=w).unsqueeze(0).expand(w, h)
+            self.y_coords = torch.linspace(-1, 1, steps=h).unsquueze(1).expand(w, h)
+            coords = torch.stack((self.x_coords, self.y_coords), dim=0).repeat(b, 1, 1, 1)
+
+        return torch.cat((x,coords), dim=0)
+        
+
+
+
+
 
 # Taken and modified from https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/models.py
 class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, activation, bn=True, bias=False, dropblock=False, sam=False, eca=False, ws=False):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, activation, bn=True, bias=False, dropblock=False, sam=False, eca=False, ws=False, coord=False):
         super().__init__()
 
         # PADDING is (ks-1)/2
         padding = (kernel_size - 1) // 2
 
         modules: ty.List[ty.Union[nn.Module]] = []
+        #Adding two more to input channels if coord
+        if coord:
+            in_channels += 2
+            modules.append(AddCoordChannels())
         if ws:
             modules.append(Conv2dWS(in_channels, out_channels, kernel_size, stride, padding, bias=bias))            
         else:
