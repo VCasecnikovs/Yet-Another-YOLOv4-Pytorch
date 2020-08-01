@@ -20,10 +20,10 @@ This is implementation of YOLOv4 object detection neural network on pytorch. I'l
  - [x] Weight standartization from https://arxiv.org/abs/1903.10520 (Do not suggest to use with pretrained, could lead to an input explosion, used with track_running_stats, otherwise explosion)
  - [x] Notebook with guide
  - [x] IoU Aware from https://arxiv.org/abs/2007.12099
- - [x] NMS in Depth implementation 
- - [x] Matrix NMS algorithm from https://arxiv.org/abs/2007.12099
+ - [x] NMS in Depth implementation  (not connected)
+ - [x] Matrix NMS algorithm from https://arxiv.org/abs/2007.12099 (not connected)
  - [ ] Deformable convolutions from https://arxiv.org/abs/2007.12099
- - [x] Coord convolutions from https://arxiv.org/abs/2007.12099
+ - [x] Coord convolutions from https://arxiv.org/abs/2007.12099 (not connected)
  - [x] Self adversial training with vanila grad
 
 
