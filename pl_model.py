@@ -37,7 +37,7 @@ class YOLOv4PL(pl.LightningModule):
 
         return {"loss": loss, "log": logger_logs}
 
-    def sat_training_step(self, batch, epsilon=0.01):
+    def sat_fgsm_training_step(self, batch, epsilon=0.01):
         filenames, images, labels = batch
 
         images.requires_grad_(True)
@@ -48,9 +48,25 @@ class YOLOv4PL(pl.LightningModule):
         images = torch.clamp(images + data_grad.sign() * epsilon, 0, 1)
         return self.basic_training_step((filenames, images, labels))
 
+    def sat_vanila_training_step(self, batch, epsilon=1):
+        filenames, images, labels = batch
+
+        images.requires_grad_(True)
+        y_hat, loss = self(images, labels)
+        loss.backward()
+        data_grad = images.grad.data
+        images.requires_grad_(False)
+        images = torch.clamp(images + data_grad, 0, 1)
+        return self.basic_training_step((filenames, images, labels))
+        
+
+
+
     def training_step(self, batch, batch_idx):
-        if self.hparams.SAT:
-            return self.sat_training_step(batch, self.hparams.epsilon)
+        if self.hparams.SAT == "vanila":
+            return self.sat_vanila_training_step(batch, self.hparams.epsilon)
+        elif self.haparams.SAT == "fgsm":
+            return self.sat_fgsm_training_step(batch, self.hparams.epsilon)
         else:
             return self.basic_training_step(batch)
 
