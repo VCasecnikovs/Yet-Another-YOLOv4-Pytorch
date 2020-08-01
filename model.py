@@ -476,6 +476,8 @@ class YOLOLayer(nn.Module):
         else:
             self.grid_size = 0  # grid size
 
+        self.iou_aware = iou_aware
+
     def compute_grid_offsets(self, grid_size, cuda=True):
         self.grid_size = grid_size
         g = self.grid_size
@@ -640,7 +642,7 @@ class YOLOLayer(nn.Module):
         w = prediction[..., 2]  # Width
         h = prediction[..., 3]  # Height
         pred_conf = torch.sigmoid(prediction[..., 4])  # Conf
-        if not iou_aware:
+        if not self.iou_aware:
             pred_cls = torch.sigmoid(prediction[..., 5:])  # Cls pred
         else:
             pred_cls = torch.sigmoid(prediction[..., 5:-1])# Cls pred
@@ -704,7 +706,7 @@ class YOLOLayer(nn.Module):
 
         total_loss = CIoUloss + loss_cls + loss_conf
 
-        if iou_aware:
+        if self.iou_aware:
             pred_iou_masked = pred_iou[obj_mask]
             total_loss = F.mse_loss(pred_iou_masked, iou_masked)
         # print(f"C: {c}; D: {d}")
