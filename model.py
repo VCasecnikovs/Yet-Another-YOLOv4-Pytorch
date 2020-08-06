@@ -178,24 +178,26 @@ class Conv2dWS(nn.Conv2d):
         return F.conv2d(x, weight, self.bias, self.stride,
                         self.padding, self.dilation, self.groups)
 
-# From https://arxiv.org/pdf/2003.10152.pdf
+# From https://arxiv.org/pdf/2003.10152.pdf and https://github.com/Wizaron/coord-conv-pytorch/blob/master/coord_conv.py
 class AddCoordChannels(nn.Module):
     def __init__(self, w=9, h=9, b=1):
         super().__init__()
         self.w = w
         self.h = h
-        self.x_coords = torch.linspace(-1, 1, steps=w).unsqueeze(0).expand(w, h)
-        self.y_coords = torch.linspace(-1, 1, steps=h).unsquueze(1).expand(w, h)
+        self.y_coords = 2.0 * torch.arange(h).unsqueeze(1).expand(h, w) / (h - 1.0) - 1.0
+        self.x_coords = 2.0 * torch.arange(w).unsqueeze(0).expand(h, w) / (w - 1.0) - 1.0
         self.b = b
 
     def forward(self, x):
         b, c, w, h = x.shape
         if w != self.w or h != self.h or b != self.b:
-            self.x_coords = torch.linspace(-1, 1, steps=w).unsqueeze(0).expand(w, h)
-            self.y_coords = torch.linspace(-1, 1, steps=h).unsquueze(1).expand(w, h)
-            coords = torch.stack((self.x_coords, self.y_coords), dim=0).repeat(b, 1, 1, 1)
+            self.y_coords = 2.0 * torch.arange(h).unsqueeze(1).expand(h, w) / (h - 1.0) - 1.0
+            self.x_coords = 2.0 * torch.arange(w).unsqueeze(0).expand(h, w) / (w - 1.0) - 1.0
+            coords = torch.stack((self.x_coords, self.y_coords), dim=0)
+            coords = torch.unsqueeze(coords, dim=0).repeat(b, 1, 1, 1)
 
-        return torch.cat((x,coords), dim=0)
+
+        return torch.cat((x,coords.to(x.device)), dim=1)
         
 
 # Taken and modified from https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/models.py
@@ -413,7 +415,7 @@ class Neck(nn.Module):
         self.mp4_3 = nn.MaxPool2d(kernel_size=spp_kernels[2], stride=1, padding=spp_kernels[2] // 2)
 
         self.c5 = ConvBlock(2048, 512, 1, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=ws, coord=False, hard_mish=hard_mish)
-        self.c6 = ConvBlock(512, 1024, 3, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws, coord=True, hard_mish=hard_mish)
+        self.c6 = ConvBlock(512, 1024, 3, 1, "leaky", dropblock=dropblock, sam=sam, eca=eca, ws=ws, coord=coord, hard_mish=hard_mish)
         self.c7 = ConvBlock(1024, 512, 1, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=ws, coord=False, hard_mish=hard_mish)
 
         self.PAN8 = PAN_Layer(PAN_layers[0], dropblock=dropblock, sam=sam, eca=eca, ws=ws, coord=coord, hard_mish=hard_mish)
