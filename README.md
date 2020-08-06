@@ -23,8 +23,9 @@ This is implementation of YOLOv4 object detection neural network on pytorch. I'l
  - [x] NMS in Depth implementation  (not connected)
  - [x] Matrix NMS algorithm from https://arxiv.org/abs/2007.12099 (not connected)
  - [ ] Deformable convolutions from https://arxiv.org/abs/2007.12099
- - [x] Coord convolutions from https://arxiv.org/abs/2007.12099 (not connected)
+ - [x] Coord convolutions from https://arxiv.org/abs/2007.12099
  - [x] Self adversial training with vanila grad
+ - [x] Hard mish
 
 
 
