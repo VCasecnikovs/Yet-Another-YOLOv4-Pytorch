@@ -65,7 +65,7 @@ class YOLOv4PL(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         if self.hparams.SAT == "vanila":
             return self.sat_vanila_training_step(batch, self.hparams.epsilon)
-        elif self.haparams.SAT == "fgsm":
+        elif self.hparams.SAT == "fgsm":
             return self.sat_fgsm_training_step(batch, self.hparams.epsilon)
         else:
             return self.basic_training_step(batch)

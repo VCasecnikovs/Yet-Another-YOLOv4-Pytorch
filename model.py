@@ -30,8 +30,8 @@ class BadArguments(Exception):
 import torch
 import torch.nn.functional as F
 
-# As written in Darknet by AlexeyAB
-class HardMish(torch.autograd.Function):
+# Mish as written in darknet speed check
+class darknet_mish(torch.autograd.Function):
     """
     We can implement our own custom autograd Functions by subclassing
     torch.autograd.Function and implementing the forward and backward passes
@@ -49,11 +49,11 @@ class HardMish(torch.autograd.Function):
         ctx.save_for_backward(input)
         e = torch.exp(input)
         n = e * e + 2 * e
-        mask = x <= -0.6
-        x[mask] = x * (n / (n + 2)) 
-        x[~mask] = x - 2 * (x / (n + 2))
+        mask = input <= -0.6
+        input[mask] = (input * (n / (n + 2)))[mask]
+        input[~mask] = ((input - 2 * (input / (n + 2))))[~mask]
 
-        return x
+        return input
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -71,6 +71,21 @@ class HardMish(torch.autograd.Function):
         grad_tsp = (1 - tsp * tsp) * grad_sp
         grad = input * grad_tsp + tsp
         return grad
+
+
+class DarknetMish(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return darknet_mish.apply(x)
+
+
+class HardMish(nn.Module):
+    def __init__(self):
+        super().__init__()
+    def forward(self, x):
+        return (x/2) * torch.clamp(x+2, min=0, max=2)
 
 
 # Taken from https://github.com/lessw2020/mish
@@ -202,7 +217,7 @@ class AddCoordChannels(nn.Module):
 
 # Taken and modified from https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/models.py
 class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, activation, bn=True, bias=False, dropblock=False, sam=False, eca=False, ws=False, coord=False, hard_mish=True):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, activation, bn=True, bias=False, dropblock=False, sam=False, eca=False, ws=False, coord=False, hard_mish=False):
         super().__init__()
 
         # PADDING is (ks-1)/2
