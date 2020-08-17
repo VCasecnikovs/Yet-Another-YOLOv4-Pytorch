@@ -163,7 +163,7 @@ class FastGlobalAvgPool2d():
 
 #As an example was taken https://github.com/BangguWu/ECANet/blob/master/models/eca_module.py
 class ECA(nn.Module):
-    def __init__(self, channel, k_size=3):
+    def __init__(self, k_size=3):
         super().__init__()
         self.avg_pool = FastGlobalAvgPool2d(flatten=False)
         self.conv = nn.Conv1d(1, 1, kernel_size=k_size, padding=(k_size - 1) // 2, bias=False)
@@ -252,7 +252,7 @@ class ConvBlock(nn.Module):
             modules.append(SAM(out_channels))
 
         if eca:
-            modules.append(ECA(out_channels))
+            modules.append(ECA())
 
         if dropblock:
             modules.append(DropBlock2D())
