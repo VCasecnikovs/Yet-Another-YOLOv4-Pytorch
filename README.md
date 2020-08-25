@@ -26,7 +26,13 @@ This is implementation of YOLOv4 object detection neural network on pytorch. I'l
  - [x] Coord convolutions from https://arxiv.org/abs/2007.12099
  - [x] Self adversial training with vanila grad
  - [x] Hard mish
-
+ - [ ] Easy mAP for your DL
+ - [ ] ASFF from https://arxiv.org/abs/1911.09516
+ - [ ] RAdam optimizer
+ - [ ] Ranger optimizer (RAdam + LookAhead)
+ - [ ] Repulsion Loss from https://arxiv.org/abs/1711.07752v2
+ - [ ] Soft IoU Loss from https://arxiv.org/abs/1904.00853v3
+ - [ ] Elastic from https://arxiv.org/abs/1812.05262
 
 
  
