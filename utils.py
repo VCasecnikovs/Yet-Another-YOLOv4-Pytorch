@@ -159,3 +159,40 @@ def get_bboxes_from_anchors(anchors, confidence_threshold, iou_threshold, labels
     return batch_bboxes, labels
      
 
+def iou_all_to_all(a, b):
+    area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
+
+    iw = torch.min(torch.unsqueeze(a[:, 2], dim=1), b[:, 2]) - torch.max(torch.unsqueeze(a[:, 0], 1), b[:, 0])
+    ih = torch.min(torch.unsqueeze(a[:, 3], dim=1), b[:, 3]) - torch.max(torch.unsqueeze(a[:, 1], 1), b[:, 1])
+
+    iw = torch.clamp(iw, min=0)
+    ih = torch.clamp(ih, min=0)
+
+    ua = torch.unsqueeze((a[:, 2] - a[:, 0]) * (a[:, 3] - a[:, 1]), dim=1) + area - iw * ih
+
+    ua = torch.clamp(ua, min=1e-8)
+
+    intersection = iw * ih
+
+    IoU = intersection / ua
+
+    return IoU
+
+def smooth_ln(x, smooth =0.5):
+    return torch.where(
+        torch.le(x, smooth),
+        -torch.log(1 - x),
+        ((x - smooth) / (1 - smooth)) - np.log(1 - smooth)
+    )
+
+def iog(ground_truth, prediction):
+
+    inter_xmin = torch.max(ground_truth[:, 0], prediction[:, 0])
+    inter_ymin = torch.max(ground_truth[:, 1], prediction[:, 1])
+    inter_xmax = torch.min(ground_truth[:, 2], prediction[:, 2])
+    inter_ymax = torch.min(ground_truth[:, 3], prediction[:, 3])
+    Iw = torch.clamp(inter_xmax - inter_xmin, min=0)
+    Ih = torch.clamp(inter_ymax - inter_ymin, min=0)
+    I = Iw * Ih
+    G = (ground_truth[:, 2] - ground_truth[:, 0]) * (ground_truth[:, 3] - ground_truth[:, 1])
+    return I / G

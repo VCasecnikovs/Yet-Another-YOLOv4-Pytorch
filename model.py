@@ -601,7 +601,7 @@ class Head(nn.Module):
 class YOLOLayer(nn.Module):
     """Detection layer taken and modified from https://github.com/eriklindernoren/PyTorch-YOLOv3"""
 
-    def __init__(self, anchors, num_classes, img_dim=608, grid_size=None, iou_aware=False):
+    def __init__(self, anchors, num_classes, img_dim=608, grid_size=None, iou_aware=False, repulsion_loss=False):
         super(YOLOLayer, self).__init__()
         self.anchors = anchors
         self.num_anchors = len(anchors)
@@ -618,6 +618,7 @@ class YOLOLayer(nn.Module):
             self.grid_size = 0  # grid size
 
         self.iou_aware = iou_aware
+        self.repulsion_loss = repulsion_loss
 
     def compute_grid_offsets(self, grid_size, cuda=True):
         self.grid_size = grid_size
@@ -767,6 +768,78 @@ class YOLOLayer(nn.Module):
 
         return xc1, yc1, xc2, yc2
 
+    def xywh2xyxy(self, x):
+        # Convert bounding box format from [x, y, w, h] to [x1, y1, x2, y2]
+        y = torch.zeros_like(x) if isinstance(x, torch.Tensor) else np.zeros_like(x)
+        y[:, 0] = x[:, 0] - x[:, 2] / 2
+        y[:, 1] = x[:, 1] - x[:, 3] / 2
+        y[:, 2] = x[:, 0] + x[:, 2] / 2
+        y[:, 3] = x[:, 1] + x[:, 3] / 2
+        return y
+
+    def iou_all_to_all(self, a, b):
+        area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
+
+        iw = torch.min(torch.unsqueeze(a[:, 2], dim=1), b[:, 2]) - torch.max(torch.unsqueeze(a[:, 0], 1), b[:, 0])
+        ih = torch.min(torch.unsqueeze(a[:, 3], dim=1), b[:, 3]) - torch.max(torch.unsqueeze(a[:, 1], 1), b[:, 1])
+
+        iw = torch.clamp(iw, min=0)
+        ih = torch.clamp(ih, min=0)
+
+        ua = torch.unsqueeze((a[:, 2] - a[:, 0]) * (a[:, 3] - a[:, 1]), dim=1) + area - iw * ih
+
+        ua = torch.clamp(ua, min=1e-8)
+
+        intersection = iw * ih
+
+        IoU = intersection / ua
+
+        return IoU
+
+    def smooth_ln(self, x, smooth =0.5):
+        return torch.where(
+            torch.le(x, smooth),
+            -torch.log(1 - x),
+            ((x - smooth) / (1 - smooth)) - np.log(1 - smooth)
+        )
+
+    def iog(self, ground_truth, prediction):
+
+        inter_xmin = torch.max(ground_truth[:, 0], prediction[:, 0])
+        inter_ymin = torch.max(ground_truth[:, 1], prediction[:, 1])
+        inter_xmax = torch.min(ground_truth[:, 2], prediction[:, 2])
+        inter_ymax = torch.min(ground_truth[:, 3], prediction[:, 3])
+        Iw = torch.clamp(inter_xmax - inter_xmin, min=0)
+        Ih = torch.clamp(inter_ymax - inter_ymin, min=0)
+        I = Iw * Ih
+        G = (ground_truth[:, 2] - ground_truth[:, 0]) * (ground_truth[:, 3] - ground_truth[:, 1])
+        return I / G
+
+    def calculate_repullsion(self, y, y_hat):
+        batch_size = y_hat.shape[0]
+        RepGTS = []
+        RepBoxes = []
+        for bn in range(batch_size):
+            pred_bboxes = self.xywh2xyxy(y_hat[bn, :, :4])
+            bn_mask = y[:, 0] == bn
+            gt_bboxes = self.xywh2xyxy(y[bn_mask, 2:] * 608)
+            iou_anchor_to_target = self.iou_all_to_all(pred_bboxes, gt_bboxes)
+            val, ind = torch.topk(iou_anchor_to_target, 2)
+            second_closest_target_index = ind[:, 1]
+            second_closest_target = gt_bboxes[second_closest_target_index]
+            RepGT = self.smooth_ln(self.iog(second_closest_target, pred_bboxes)).mean()
+            RepGTS.append(RepGT)
+
+            have_target_mask = val[:, 0] != 0
+            anchors_with_target = pred_bboxes[have_target_mask]
+            iou_anchor_to_anchor = self.iou_all_to_all(anchors_with_target, anchors_with_target)
+            other_mask = torch.eye(iou_anchor_to_anchor.shape[0]) == 0
+            different_target_mask = (ind[have_target_mask, 0] != ind[have_target_mask, 0].unsqueeze(1))
+            iou_atoa_filtered = iou_anchor_to_anchor[other_mask & different_target_mask]
+            RepBox = self.smooth_ln(iou_atoa_filtered).sum()/iou_atoa_filtered.sum()
+            RepBoxes.append(RepBox)
+        return torch.stack(RepGTS).mean(), torch.stack(RepBoxes).mean()
+
     def forward(self, x, targets=None):
         # Tensors for cuda support
         FloatTensor = torch.cuda.FloatTensor if x.is_cuda else torch.FloatTensor
@@ -852,7 +925,12 @@ class YOLOLayer(nn.Module):
 
         if self.iou_aware:
             pred_iou_masked = pred_iou[obj_mask]
-            total_loss = F.mse_loss(pred_iou_masked, iou_masked)
+            total_loss += F.mse_loss(pred_iou_masked, iou_masked)
+
+        if self.repulstion_loss:
+            repgt, repbox = self.calculate_repullsion(targets, output)
+            total_loss += 0.5 * repgt + 0.5 * repbox
+
         # print(f"C: {c}; D: {d}")
         # print(f"Confidence is object: {loss_conf_obj}, Confidence no object: {loss_conf_noobj}")
         # print(f"IoU: {iou_masked}; DIoU: {rDIoU}; alpha: {alpha}; v: {v}")
@@ -861,7 +939,7 @@ class YOLOLayer(nn.Module):
 
 
 class YOLOv4(nn.Module):
-    def __init__(self, in_channels=3, n_classes=80, weights_path=None, pretrained=False, img_dim=608, anchors=None, dropblock=True, sam=False, eca=False, ws=False, iou_aware=False, coord=False, hard_mish=False, asff=False):
+    def __init__(self, in_channels=3, n_classes=80, weights_path=None, pretrained=False, img_dim=608, anchors=None, dropblock=True, sam=False, eca=False, ws=False, iou_aware=False, coord=False, hard_mish=False, asff=False, repulsion_loss=False):
         super().__init__()
         if anchors is None:
             anchors = [[[10, 13], [16, 30], [33, 23]],
@@ -880,9 +958,9 @@ class YOLOv4(nn.Module):
 
         self.head = Head(output_ch, dropblock=False, sam=sam, eca=eca, ws=ws, coord=coord, hard_mish=hard_mish)
 
-        self.yolo1 = YOLOLayer(anchors[0], n_classes, img_dim, iou_aware=iou_aware)
-        self.yolo2 = YOLOLayer(anchors[1], n_classes, img_dim, iou_aware=iou_aware)
-        self.yolo3 = YOLOLayer(anchors[2], n_classes, img_dim, iou_aware=iou_aware)
+        self.yolo1 = YOLOLayer(anchors[0], n_classes, img_dim, iou_aware=iou_aware, repulsion_loss=repulsion_loss)
+        self.yolo2 = YOLOLayer(anchors[1], n_classes, img_dim, iou_aware=iou_aware, repulsion_loss=repulsion_loss)
+        self.yolo3 = YOLOLayer(anchors[2], n_classes, img_dim, iou_aware=iou_aware, repulsion_loss=repulsion_loss)
 
         if weights_path:
             try:  # If we change input or output layers amount, we will have an option to use pretrained weights
