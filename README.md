@@ -32,6 +32,8 @@ This is implementation of YOLOv4 object detection neural network on pytorch. I'l
  - [x] Ranger optimizer (RAdam + LookAhead) from  https://github.com/lessw2020/Ranger-Deep-Learning-Optimizer
  - [x] Repulsion Loss from https://arxiv.org/abs/1711.07752v2
  - [ ] Soft IoU Loss from https://arxiv.org/abs/1904.00853v3
+    - [x] Learning IoU (as in IoU, just use IoU aware)
+    - [ ] EM-Merger
  - [ ] Elastic from https://arxiv.org/abs/1812.05262
 
 

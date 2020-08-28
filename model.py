@@ -925,7 +925,7 @@ class YOLOLayer(nn.Module):
 
         if self.iou_aware:
             pred_iou_masked = pred_iou[obj_mask]
-            total_loss += F.mse_loss(pred_iou_masked, iou_masked)
+            total_loss += F.binary_cross_entropy(pred_iou_masked, iou_masked)   
 
         if self.repulstion_loss:
             repgt, repbox = self.calculate_repullsion(targets, output)
