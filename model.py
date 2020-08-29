@@ -199,20 +199,24 @@ class AddCoordChannels(nn.Module):
         super().__init__()
         self.w = w
         self.h = h
+        self.b = b
         self.y_coords = 2.0 * torch.arange(h).unsqueeze(1).expand(h, w) / (h - 1.0) - 1.0
         self.x_coords = 2.0 * torch.arange(w).unsqueeze(0).expand(h, w) / (w - 1.0) - 1.0
-        self.b = b
+        self.coords = torch.stack((self.x_coords, self.y_coords), dim=0)
+        self.coords = torch.unsqueeze(self.coords, dim=0).repeat(b, 1, 1, 1)        
 
     def forward(self, x):
-        b, c, w, h = x.shape
+        b, c, h, w = x.shape
         if w != self.w or h != self.h or b != self.b:
+            self.w = w
+            self.h = h
+            self.b = b
             self.y_coords = 2.0 * torch.arange(h).unsqueeze(1).expand(h, w) / (h - 1.0) - 1.0
             self.x_coords = 2.0 * torch.arange(w).unsqueeze(0).expand(h, w) / (w - 1.0) - 1.0
-            coords = torch.stack((self.x_coords, self.y_coords), dim=0)
-            coords = torch.unsqueeze(coords, dim=0).repeat(b, 1, 1, 1)
+            self.coords = torch.stack((self.x_coords, self.y_coords), dim=0)
+            self.coords = torch.unsqueeze(self.coords, dim=0).repeat(b, 1, 1, 1)
 
-
-        return torch.cat((x,coords.to(x.device)), dim=1)
+        return torch.cat((x, self.coords.to(x.device)), dim=1)
         
 
 # Taken and modified from https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/models.py
