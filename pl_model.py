@@ -11,6 +11,7 @@ from radam import RAdam
 
 from sched_del import DelayedCosineAnnealingLR
 
+torch.backends.cudnn.benchmark = True
 
 class YOLOv4PL(pl.LightningModule):
     def __init__(self, hparams):
@@ -34,11 +35,11 @@ class YOLOv4PL(pl.LightningModule):
             repulsion_loss=hparams.repulsion_loss).cuda()
 
     def train_dataloader(self):
-        train_dl = DataLoader(self.train_ds, batch_size=self.hparams.bs, collate_fn=self.train_ds.collate_fn, pin_memory=True)
+        train_dl = DataLoader(self.train_ds, batch_size=self.hparams.bs, collate_fn=self.train_ds.collate_fn, pin_memory=True, num_workers=4)
         return train_dl
 
     def val_dataloader(self):
-        valid_dl = DataLoader(self.valid_ds, batch_size=self.hparams.bs, collate_fn=self.valid_ds.collate_fn, pin_memory=True)
+        valid_dl = DataLoader(self.valid_ds, batch_size=self.hparams.bs, collate_fn=self.valid_ds.collate_fn, pin_memory=True, num_workers=4)
         return valid_dl
 
     def forward(self, x, y=None):
