@@ -35,6 +35,7 @@ This is implementation of YOLOv4 object detection neural network on pytorch. I'l
     - [x] Learning IoU (as in IoU, just use IoU aware)
     - [ ] EM-Merger (TODO: use https://github.com/eg4000/SKU110K_CVPR19 to do postprocessing util)
  - [ ] Elastic from https://arxiv.org/abs/1812.05262
+ 
 
 
  

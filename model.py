@@ -80,7 +80,7 @@ class DarknetMish(nn.Module):
     def forward(self, x):
         return darknet_mish.apply(x)
 
-
+# @torch.jit.script
 class HardMish(nn.Module):
     def __init__(self):
         super().__init__()
@@ -429,15 +429,15 @@ class ASFF(nn.Module):
         if level==0:
             self.stride_level_1 = ConvBlock(256, self.inter_dim, 3, 2, "leaky")
             self.stride_level_2 = ConvBlock(128, self.inter_dim, 3, 2, "leaky")
-            self.expand = ConvBlock(self.inter_dim, 1024, 3, 1, "leaky")
+            self.expand = ConvBlock(self.inter_dim, 512, 3, 1, "leaky")
         elif level==1:
             self.compress_level_0 = ConvBlock(512, self.inter_dim, 1, 1, "leaky")
             self.stride_level_2 = ConvBlock(128, self.inter_dim, 3, 2, "leaky")
-            self.expand = ConvBlock(self.inter_dim, 512, 3, 1, "leaky")
+            self.expand = ConvBlock(self.inter_dim, 256, 3, 1, "leaky")
         elif level==2:
             self.compress_level_0 = ConvBlock(512, self.inter_dim, 1, 1, "leaky")
             self.compress_level_1 = ConvBlock(256, self.inter_dim, 1, 1, "leaky")
-            self.expand = ConvBlock(self.inter_dim, 256, 3, 1, "leaky")
+            self.expand = ConvBlock(self.inter_dim, 128, 3, 1, "leaky")
 
         compress_c = 8 if rfb else 16  #when adding rfb, we use half number of channels to save memory
 
@@ -453,10 +453,8 @@ class ASFF(nn.Module):
         if self.level==0:
             level_0_resized = x_level_0 # 512 -> 512
             level_1_resized = self.stride_level_1(x_level_1) # 256 -> 512
-
             level_2_downsampled_inter =F.max_pool2d(x_level_2, 3, stride=2, padding=1)
             level_2_resized = self.stride_level_2(level_2_downsampled_inter) # 128 -> 512
-
         elif self.level==1:
             level_0_compressed = self.compress_level_0(x_level_0) # 512 -> 256
             level_0_resized =F.interpolate(level_0_compressed, scale_factor=2, mode='nearest')
@@ -534,11 +532,12 @@ class Neck(nn.Module):
         x9 = self.PAN9(x8, d3)
 
         if self.asff:
-            x7 = self.ASFF_0(x7)
-            x8 = self.ASFF_1(x8)
-            x9 = self.ASFF_2(x9)
+            x7ASFF = self.ASFF_0(x7, x8, x9)
+            x8ASFF = self.ASFF_1(x7, x8, x9)
+            x9ASFF = self.ASFF_2(x7, x8, x9)
+            return x9ASFF, x8ASFF, x7ASFF
 
-        return (x9, x8, x7)
+        return x9, x8, x7
 
 
 
@@ -804,7 +803,7 @@ class YOLOLayer(nn.Module):
         return torch.where(
             torch.le(x, smooth),
             -torch.log(1 - x),
-            ((x - smooth) / (1 - smooth)) - np.log(1 - smooth)
+            ((x - smooth) / (1 - smooth)) - math.log(1 - smooth)
         )
 
     def iog(self, ground_truth, prediction):
@@ -837,7 +836,7 @@ class YOLOLayer(nn.Module):
             have_target_mask = val[:, 0] != 0
             anchors_with_target = pred_bboxes[have_target_mask]
             iou_anchor_to_anchor = self.iou_all_to_all(anchors_with_target, anchors_with_target)
-            other_mask = torch.eye(iou_anchor_to_anchor.shape[0]) == 0
+            other_mask = (torch.eye(iou_anchor_to_anchor.shape[0]) == 0).to(iou_anchor_to_anchor.device)
             different_target_mask = (ind[have_target_mask, 0] != ind[have_target_mask, 0].unsqueeze(1))
             iou_atoa_filtered = iou_anchor_to_anchor[other_mask & different_target_mask]
             RepBox = self.smooth_ln(iou_atoa_filtered).sum()/iou_atoa_filtered.sum()
@@ -851,8 +850,12 @@ class YOLOLayer(nn.Module):
         num_samples = x.size(0)
         grid_size = x.size(2)
 
+        if self.iou_aware:
+            not_class_channels = 6
+        else:
+            not_class_channels = 5
         prediction = (
-            x.view(num_samples, self.num_anchors, self.num_classes + 5, grid_size, grid_size)
+            x.view(num_samples, self.num_anchors, self.num_classes + not_class_channels, grid_size, grid_size)
             .permute(0, 1, 3, 4, 2)
             .contiguous()
         )
@@ -929,9 +932,17 @@ class YOLOLayer(nn.Module):
 
         if self.iou_aware:
             pred_iou_masked = pred_iou[obj_mask]
-            total_loss += F.binary_cross_entropy(pred_iou_masked, iou_masked)   
 
-        if self.repulstion_loss:
+            # print("Pred iou", pred_iou.shape)
+            # print("IOU masked", iou_masked.shape)
+            # print("Pred iou", pred_iou)
+            # print("IOU masked", iou_masked)
+            # print("pred iou masked", pred_iou_masked.shape)
+            # print("pred iou masked", pred_iou_masked)
+            # print(F.binary_cross_entropy(pred_iou_masked, iou_masked.detach()))
+            total_loss += F.binary_cross_entropy(pred_iou_masked, iou_masked.detach())   
+
+        if self.repulsion_loss:
             repgt, repbox = self.calculate_repullsion(targets, output)
             total_loss += 0.5 * repgt + 0.5 * repbox
 
@@ -952,7 +963,7 @@ class YOLOv4(nn.Module):
 
         output_ch = (4 + 1 + n_classes) * 3
         if iou_aware:
-            output_ch += 1 #1 for iou
+            output_ch += 3 #1 for iou
 
         self.img_dim = img_dim
 
