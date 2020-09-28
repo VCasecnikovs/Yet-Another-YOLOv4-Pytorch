@@ -562,8 +562,8 @@ class ACFF(nn.Module):
             self.expand = ConvBlock(self.inter_dim, 128, 3, 1, "leaky", bcn=bcn, mbn=mbn)
 
         self.avg_pool = FastGlobalAvgPool2d()
-        self.weights_spatial = torch.nn.Parameter(torch.ones((3, 512, 3)))
-        self.weights_spatial = torch.nn.init.kaiming_uniform_(self.weights_spatial, a=0, mode='fan_in', nonlinearity='leaky_relu')
+        self.weights_spatial = torch.nn.Parameter(torch.ones((3, self.inter_dim, 3)))
+        self.weights_spatial = torch.nn.init.kaiming_uniform_(self.weights_spatial, a=0, mode='fan_in', nonlinearity='relu')
 
         self.vis= vis
 
@@ -600,9 +600,9 @@ class ACFF(nn.Module):
 
         levels_weight = torch.nn.functional.softmax(levels_weight, dim=2).unsqueeze(-1)
 
-        fused_out_reduced = level_0_resized * levels_weight[:,0:1,:,:]+\
-                            level_1_resized * levels_weight[:,1:2,:,:]+\
-                            level_2_resized * levels_weight[:,2:,:,:]
+        fused_out_reduced = level_0_resized * levels_weight[:,:,0:1,:]+\
+                            level_1_resized * levels_weight[:,:,1:2,:]+\
+                            level_2_resized * levels_weight[:,:,2:,:]
 
         out = self.expand(fused_out_reduced)
 

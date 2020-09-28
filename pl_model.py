@@ -32,7 +32,10 @@ class YOLOv4PL(pl.LightningModule):
             coord=hparams.coord,
             hard_mish=hparams.hard_mish,
             asff=hparams.asff,
-            repulsion_loss=hparams.repulsion_loss).cuda()
+            repulsion_loss=hparams.repulsion_loss,
+            acff=hparams.acff,
+            bcn=hparams.bcn,
+            mbn=hparams.mbn).cuda()
 
     def train_dataloader(self):
         train_dl = DataLoader(self.train_ds, batch_size=self.hparams.bs, collate_fn=self.train_ds.collate_fn, pin_memory=True, num_workers=4)
