@@ -922,6 +922,7 @@ class YOLOLayer(nn.Module):
         return y
 
     def iou_all_to_all(self, a, b):
+        #Calculates intersection over union area for each a bounding box with each b bounding box
         area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
 
         iw = torch.min(torch.unsqueeze(a[:, 2], dim=1), b[:, 2]) - torch.max(torch.unsqueeze(a[:, 0], 1), b[:, 0])
@@ -964,6 +965,7 @@ class YOLOLayer(nn.Module):
         RepGTS = []
         RepBoxes = []
         for bn in range(batch_size):
+            #Repulsion between prediction bbox and neighboring target bbox, which are not target for this bounding box. (pred bbox <- -> 2nd/3rd/... by iou target bbox)
             pred_bboxes = self.xywh2xyxy(y_hat[bn, :, :4])
             bn_mask = y[:, 0] == bn
             gt_bboxes = self.xywh2xyxy(y[bn_mask, 2:] * 608)
@@ -974,6 +976,7 @@ class YOLOLayer(nn.Module):
             RepGT = self.smooth_ln(self.iog(second_closest_target, pred_bboxes)).mean()
             RepGTS.append(RepGT)
 
+            #Repulsion between pred bbox and pred bbox, which are not refering to the same target bbox.
             have_target_mask = val[:, 0] != 0
             anchors_with_target = pred_bboxes[have_target_mask]
             iou_anchor_to_anchor = self.iou_all_to_all(anchors_with_target, anchors_with_target)
