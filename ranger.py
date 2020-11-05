@@ -34,6 +34,22 @@ class Ranger(Optimizer):
                  # Gradient centralization on or off, applied to conv layers only or conv + fc layers
                  use_gc=True, gc_conv_only=False
                  ):
+        """
+        Initialize the gradient.
+
+        Args:
+            self: (todo): write your description
+            params: (dict): write your description
+            lr: (float): write your description
+            alpha: (float): write your description
+            k: (int): write your description
+            N_sma_threshhold: (float): write your description
+            betas: (float): write your description
+            eps: (float): write your description
+            weight_decay: (float): write your description
+            use_gc: (bool): write your description
+            gc_conv_only: (bool): write your description
+        """
 
         # parameter checks
         if not 0.0 <= alpha <= 1.0:
@@ -80,10 +96,24 @@ class Ranger(Optimizer):
             print(f"GC applied to conv layers only")
 
     def __setstate__(self, state):
+        """
+        Sets whether or not this button is on.
+
+        Args:
+            self: (todo): write your description
+            state: (dict): write your description
+        """
         print("set state called")
         super(Ranger, self).__setstate__(state)
 
     def step(self, closure=None):
+        """
+        Perform a single optimization step.
+
+        Args:
+            self: (todo): write your description
+            closure: (callable): write your description
+        """
         loss = None
         # note - below is commented out b/c I have other work that passes back the loss as a float, and thus not a callable closure.
         # Uncomment if you need to use the actual closure...

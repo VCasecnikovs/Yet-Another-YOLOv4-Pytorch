@@ -20,6 +20,19 @@ class LARS(Optimizer):
     """
     def __init__(self, params, lr=required, momentum=.9,
                  weight_decay=.0005, eta=0.001, max_epoch=200):
+        """
+        Initialize the learning rate.
+
+        Args:
+            self: (todo): write your description
+            params: (dict): write your description
+            lr: (float): write your description
+            required: (todo): write your description
+            momentum: (array): write your description
+            weight_decay: (float): write your description
+            eta: (float): write your description
+            max_epoch: (int): write your description
+        """
         if lr is not required and lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if momentum < 0.0:
