@@ -11,6 +11,24 @@ import random
 
 class ListDataset(Dataset):
     def __init__(self, list_path, img_dir="images", labels_dir="labels",  img_extensions=[".JPG"], img_size=608, train=True, bbox_minsize=0.01, brightness_range=0.25, contrast_range=0.25, hue_range=0.05, saturation_range=0.25, cross_offset=0.2):
+        """
+        Initialize cross - validation.
+
+        Args:
+            self: (todo): write your description
+            list_path: (str): write your description
+            img_dir: (str): write your description
+            labels_dir: (str): write your description
+            img_extensions: (str): write your description
+            img_size: (int): write your description
+            train: (todo): write your description
+            bbox_minsize: (int): write your description
+            brightness_range: (str): write your description
+            contrast_range: (str): write your description
+            hue_range: (todo): write your description
+            saturation_range: (todo): write your description
+            cross_offset: (int): write your description
+        """
         with open(list_path, "r") as file:
             self.img_files = file.read().splitlines()
 
@@ -36,6 +54,13 @@ class ListDataset(Dataset):
         self.cross_offset = cross_offset
 
     def __getitem__(self, index):
+        """
+        Get a random image.
+
+        Args:
+            self: (todo): write your description
+            index: (int): write your description
+        """
 
         img_path = self.img_files[index % len(self.img_files)].rstrip()
         label_path = self.label_files[index % len(self.img_files)].rstrip()
@@ -151,6 +176,16 @@ class ListDataset(Dataset):
         return img_path, tensor_img, targets
 
     def get_img_for_mosaic(self, brightness_rnd, contrast_rnd, hue_rnd, saturation_rnd):
+        """
+        Generate a random image for the image.
+
+        Args:
+            self: (todo): write your description
+            brightness_rnd: (str): write your description
+            contrast_rnd: (str): write your description
+            hue_rnd: (todo): write your description
+            saturation_rnd: (str): write your description
+        """
         random_index = random.randrange(0, len(self.img_files))
         img_path = self.img_files[random_index].rstrip()
         label_path = self.label_files[random_index].rstrip()
@@ -195,6 +230,17 @@ class ListDataset(Dataset):
 
     # N is spatial parameter if 0 TOP LEFT, if 1 TOP RIGHT, if 2 BOTTOM LEFT, if 3 BOTTOM RIGHT
     def get_mosaic(self, n, cross_x, cross_y, tensor_img, boxes):
+        """
+        Returns a 2d image of the image.
+
+        Args:
+            self: (todo): write your description
+            n: (str): write your description
+            cross_x: (str): write your description
+            cross_y: (str): write your description
+            tensor_img: (str): write your description
+            boxes: (todo): write your description
+        """
         t_height = tensor_img.shape[1]
         t_width = tensor_img.shape[2]
 
@@ -315,6 +361,13 @@ class ListDataset(Dataset):
         return tensor_img, boxes
 
     def collate_fn(self, batch):
+        """
+        Collate image paths.
+
+        Args:
+            self: (todo): write your description
+            batch: (todo): write your description
+        """
         paths, imgs, targets = list(zip(*batch))
         # Remove empty placeholder targets
         targets = [boxes for boxes in targets if boxes is not None]
@@ -326,4 +379,10 @@ class ListDataset(Dataset):
         return paths, torch.stack(imgs), targets
 
     def __len__(self):
+        """
+        Returns the length of the image.
+
+        Args:
+            self: (todo): write your description
+        """
         return len(self.img_files)

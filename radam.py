@@ -5,6 +5,18 @@ from torch.optim.optimizer import Optimizer, required
 class RAdam(Optimizer):
 
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0, degenerated_to_sgd=True):
+        """
+        Initialize the weights.
+
+        Args:
+            self: (todo): write your description
+            params: (dict): write your description
+            lr: (float): write your description
+            betas: (float): write your description
+            eps: (float): write your description
+            weight_decay: (float): write your description
+            degenerated_to_sgd: (todo): write your description
+        """
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= eps:
@@ -23,9 +35,23 @@ class RAdam(Optimizer):
         super(RAdam, self).__init__(params, defaults)
 
     def __setstate__(self, state):
+        """
+        Sets whether or not this button state.
+
+        Args:
+            self: (todo): write your description
+            state: (dict): write your description
+        """
         super(RAdam, self).__setstate__(state)
 
     def step(self, closure=None):
+        """
+        Perform a single optimization step.
+
+        Args:
+            self: (todo): write your description
+            closure: (callable): write your description
+        """
 
         loss = None
         if closure is not None:
@@ -96,6 +122,18 @@ class RAdam(Optimizer):
 class PlainRAdam(Optimizer):
 
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0, degenerated_to_sgd=True):
+        """
+        Initialize the weights.
+
+        Args:
+            self: (todo): write your description
+            params: (dict): write your description
+            lr: (float): write your description
+            betas: (float): write your description
+            eps: (float): write your description
+            weight_decay: (float): write your description
+            degenerated_to_sgd: (todo): write your description
+        """
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= eps:
@@ -111,9 +149,23 @@ class PlainRAdam(Optimizer):
         super(PlainRAdam, self).__init__(params, defaults)
 
     def __setstate__(self, state):
+        """
+        Sets whether or not this widget is a new. : param state | <bool >
+
+        Args:
+            self: (todo): write your description
+            state: (dict): write your description
+        """
         super(PlainRAdam, self).__setstate__(state)
 
     def step(self, closure=None):
+        """
+        Perform a single optimization step.
+
+        Args:
+            self: (todo): write your description
+            closure: (callable): write your description
+        """
 
         loss = None
         if closure is not None:
@@ -173,6 +225,18 @@ class PlainRAdam(Optimizer):
 class AdamW(Optimizer):
 
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0, warmup = 0):
+        """
+        Initialize the weights.
+
+        Args:
+            self: (todo): write your description
+            params: (dict): write your description
+            lr: (float): write your description
+            betas: (float): write your description
+            eps: (float): write your description
+            weight_decay: (float): write your description
+            warmup: (int): write your description
+        """
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= eps:
@@ -187,9 +251,23 @@ class AdamW(Optimizer):
         super(AdamW, self).__init__(params, defaults)
 
     def __setstate__(self, state):
+        """
+        Sets whether or not this widget is on. : param state | <bool >
+
+        Args:
+            self: (todo): write your description
+            state: (dict): write your description
+        """
         super(AdamW, self).__setstate__(state)
 
     def step(self, closure=None):
+        """
+        Perform a single optimization step.
+
+        Args:
+            self: (todo): write your description
+            closure: (callable): write your description
+        """
         loss = None
         if closure is not None:
             loss = closure()

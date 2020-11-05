@@ -6,6 +6,12 @@ from PIL import Image
 from torchvision.ops import nms
 
 def xyxy2xywh(x):
+    """
+    Convert a 2d : param x : : return :
+
+    Args:
+        x: (int): write your description
+    """
     # Convert bounding box format from [x1, y1, x2, y2] to [x, y, w, h]
     y = torch.zeros_like(x) if isinstance(x, torch.Tensor) else np.zeros_like(x)
     y[:, 0] = (x[:, 0] + x[:, 2]) / 2
@@ -16,6 +22,12 @@ def xyxy2xywh(x):
 
 
 def xywh2xyxy(x):
+    """
+    Convert 2d 2d 2d 2d 2d array
+
+    Args:
+        x: (int): write your description
+    """
     # Convert bounding box format from [x, y, w, h] to [x1, y1, x2, y2]
     y = torch.zeros_like(x) if isinstance(x, torch.Tensor) else np.zeros_like(x)
     y[:, 0] = x[:, 0] - x[:, 2] / 2
@@ -25,6 +37,16 @@ def xywh2xyxy(x):
     return y
 
 def get_img_with_bboxes(img, bboxes, resize=True, labels=None, confidences= None):
+    """
+    Get bounding boxes for image
+
+    Args:
+        img: (todo): write your description
+        bboxes: (todo): write your description
+        resize: (int): write your description
+        labels: (todo): write your description
+        confidences: (todo): write your description
+    """
     c, h, w = img.shape
     
     bboxes_xyxy = bboxes.clone()
@@ -94,6 +116,16 @@ def bbox_iou(box1, box2, x1y1x2y2=True, get_areas = False):
         return iou
 
 def nms_with_depth(bboxes, confidence, iou_threshold, depth_layer, depth_threshold):
+    """
+    Compute a bboxes of a bboxes.
+
+    Args:
+        bboxes: (list): write your description
+        confidence: (todo): write your description
+        iou_threshold: (float): write your description
+        depth_layer: (todo): write your description
+        depth_threshold: (float): write your description
+    """
     if len(bboxes) == 0:
         return bboxes
 
@@ -117,6 +149,18 @@ def nms_with_depth(bboxes, confidence, iou_threshold, depth_layer, depth_thresho
     return confidence != 0
 
 def matrix_nms(boxes, confidence, iou_threshold, batch_size, method, sigma, N):
+    """
+    R computes the nms operator.
+
+    Args:
+        boxes: (array): write your description
+        confidence: (todo): write your description
+        iou_threshold: (float): write your description
+        batch_size: (int): write your description
+        method: (str): write your description
+        sigma: (float): write your description
+        N: (array): write your description
+    """
     boxes = boxes.reshape(batch_size, -1)
     intersection = torch.mm(boxes, boxes.T)
     areas = boxes.sum(dim=1).expand(N, N)
@@ -136,6 +180,17 @@ def matrix_nms(boxes, confidence, iou_threshold, batch_size, method, sigma, N):
 
 
 def get_bboxes_from_anchors(anchors, confidence_threshold, iou_threshold, labels_dict, depth_layer = None, depth_threshold = 0.1):
+    """
+    Get bboxes from anchors for the bboxes.
+
+    Args:
+        anchors: (str): write your description
+        confidence_threshold: (str): write your description
+        iou_threshold: (float): write your description
+        labels_dict: (dict): write your description
+        depth_layer: (str): write your description
+        depth_threshold: (float): write your description
+    """
     nbatches = anchors.shape[0]
     batch_bboxes = []
     labels = []
@@ -160,6 +215,13 @@ def get_bboxes_from_anchors(anchors, confidence_threshold, iou_threshold, labels
      
 
 def iou_all_to_all(a, b):
+    """
+    Convert a bouchee iouin to a b ).
+
+    Args:
+        a: (array): write your description
+        b: (array): write your description
+    """
     area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
 
     iw = torch.min(torch.unsqueeze(a[:, 2], dim=1), b[:, 2]) - torch.max(torch.unsqueeze(a[:, 0], 1), b[:, 0])
@@ -179,6 +241,13 @@ def iou_all_to_all(a, b):
     return IoU
 
 def smooth_ln(x, smooth =0.5):
+    """
+    Smooth the smoothed function.
+
+    Args:
+        x: (int): write your description
+        smooth: (todo): write your description
+    """
     return torch.where(
         torch.le(x, smooth),
         -torch.log(1 - x),
@@ -186,6 +255,13 @@ def smooth_ln(x, smooth =0.5):
     )
 
 def iog(ground_truth, prediction):
+    """
+    R calculates the prediction.
+
+    Args:
+        ground_truth: (array): write your description
+        prediction: (array): write your description
+    """
 
     inter_xmin = torch.max(ground_truth[:, 0], prediction[:, 0])
     inter_ymin = torch.max(ground_truth[:, 1], prediction[:, 1])

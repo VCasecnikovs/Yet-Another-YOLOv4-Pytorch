@@ -76,25 +76,64 @@ class darknet_mish(torch.autograd.Function):
 
 class DarknetMish(nn.Module):
     def __init__(self):
+        """
+        Initialize the state
+
+        Args:
+            self: (todo): write your description
+        """
         super().__init__()
 
     def forward(self, x):
+        """
+        Evaluate x todo.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         return darknet_mish.apply(x)
 
 # @torch.jit.script
 class HardMish(nn.Module):
     def __init__(self):
+        """
+        Initialize the state
+
+        Args:
+            self: (todo): write your description
+        """
         super().__init__()
     def forward(self, x):
+        """
+        Calculate the forward.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         return (x/2) * torch.clamp(x+2, min=0, max=2)
 
 
 # Taken from https://github.com/lessw2020/mish
 class Mish(nn.Module):
     def __init__(self):
+        """
+        Initialize the state
+
+        Args:
+            self: (todo): write your description
+        """
         super().__init__()
 
     def forward(self, x):
+        """
+        Forward computation.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         # inlining this saves 1 second per epoch (V100 GPU) vs having a temp x and then returning x(!)
         return x * torch.tanh(F.softplus(x))
 
@@ -120,11 +159,26 @@ class DropBlock2D(nn.Module):
     """
 
     def __init__(self, keep_prob=0.9, block_size=7):
+        """
+        Initialize the state.
+
+        Args:
+            self: (todo): write your description
+            keep_prob: (float): write your description
+            block_size: (int): write your description
+        """
         super(DropBlock2D, self).__init__()
         self.keep_prob = keep_prob
         self.block_size = block_size
 
     def forward(self, input):
+        """
+        Forward computation.
+
+        Args:
+            self: (todo): write your description
+            input: (todo): write your description
+        """
         # print("Before: ", torch.isnan(input).sum())
         if not self.training or self.keep_prob == 1:
             return input
@@ -143,10 +197,24 @@ class DropBlock2D(nn.Module):
 
 class SAM(nn.Module):
     def __init__(self, in_channels):
+        """
+        Initialize the channel.
+
+        Args:
+            self: (todo): write your description
+            in_channels: (int): write your description
+        """
         super().__init__()
         self.conv = nn.Conv2d(in_channels, out_channels=1, kernel_size=1)
 
     def forward(self, x):
+        """
+        Forward computation.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         spatial_features = self.conv(x)
         attention = torch.sigmoid(spatial_features)
         return attention.expand_as(x) * x
@@ -154,8 +222,22 @@ class SAM(nn.Module):
 #Got and modified from https://arxiv.org/pdf/2003.13630.pdf
 class FastGlobalAvgPool2d():
     def __init__(self, flatten=False):
+        """
+        Initialize this object.
+
+        Args:
+            self: (todo): write your description
+            flatten: (todo): write your description
+        """
         self.flatten = flatten
     def __call__(self, x):
+        """
+        Return the size of x.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         if self.flatten:
             in_size = x.size()
             return x.view((in_size[0], in_size[1], -1)).mean(dim=2)
@@ -165,11 +247,25 @@ class FastGlobalAvgPool2d():
 #As an example was taken https://github.com/BangguWu/ECANet/blob/master/models/eca_module.py
 class ECA(nn.Module):
     def __init__(self, k_size=3):
+        """
+        Initialize k k k k_size k_size
+
+        Args:
+            self: (todo): write your description
+            k_size: (int): write your description
+        """
         super().__init__()
         self.avg_pool = FastGlobalAvgPool2d(flatten=False)
         self.conv = nn.Conv1d(1, 1, kernel_size=k_size, padding=(k_size - 1) // 2, bias=False)
 
     def forward(self, x):
+        """
+        Forward computation.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         squized_channels = self.avg_pool(x)
         channel_features = self.conv(squized_channels.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
         attention = torch.sigmoid(channel_features)
@@ -180,10 +276,31 @@ class ECA(nn.Module):
 class Conv2dWS(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                  padding=0, dilation=1, groups=1, bias=True):
+        """
+        Initialize the channel.
+
+        Args:
+            self: (todo): write your description
+            in_channels: (int): write your description
+            out_channels: (int): write your description
+            kernel_size: (int): write your description
+            stride: (int): write your description
+            padding: (str): write your description
+            dilation: (todo): write your description
+            groups: (list): write your description
+            bias: (float): write your description
+        """
         super(Conv2dWS, self).__init__(in_channels, out_channels, kernel_size, stride,
                  padding, dilation, groups, bias)
 
     def forward(self, x):
+        """
+        Forward computation.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         # print("IN: ", (~torch.isfinite(x)).sum())
         weight = self.weight
         weight_mean = weight.mean(dim=1, keepdim=True).mean(dim=2,
@@ -197,6 +314,15 @@ class Conv2dWS(nn.Conv2d):
 # From https://arxiv.org/pdf/2003.10152.pdf and https://github.com/Wizaron/coord-conv-pytorch/blob/master/coord_conv.py
 class AddCoordChannels(nn.Module):
     def __init__(self, w=9, h=9, b=1):
+        """
+        Initialize the image.
+
+        Args:
+            self: (todo): write your description
+            w: (int): write your description
+            h: (int): write your description
+            b: (int): write your description
+        """
         super().__init__()
         self.w = w
         self.h = h
@@ -207,6 +333,13 @@ class AddCoordChannels(nn.Module):
         self.coords = torch.unsqueeze(self.coords, dim=0).repeat(b, 1, 1, 1)        
 
     def forward(self, x):
+        """
+        Forward computation of the image.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         b, c, h, w = x.shape
         if w != self.w or h != self.h or b != self.b:
             self.w = w
@@ -222,6 +355,16 @@ class AddCoordChannels(nn.Module):
 #Was taken from https://github.com/joe-siyuan-qiao/Batch-Channel-Normalization     
 class BCNorm(nn.Module):
     def __init__(self, num_channels, num_groups=1, eps=1e-05, estimate=False):
+        """
+        Initialize the batch.
+
+        Args:
+            self: (todo): write your description
+            num_channels: (int): write your description
+            num_groups: (int): write your description
+            eps: (float): write your description
+            estimate: (todo): write your description
+        """
         super(BCNorm, self).__init__()
         self.num_channels = num_channels
         self.num_groups = num_groups
@@ -234,6 +377,13 @@ class BCNorm(nn.Module):
             self.bn = nn.BatchNorm2d(num_channels)
 
     def forward(self, inp):
+        """
+        Forward computation.
+
+        Args:
+            self: (todo): write your description
+            inp: (todo): write your description
+        """
         out = self.bn(inp)
         out = out.view(1, inp.size(0) * self.num_groups, -1)
         out = torch.batch_norm(out, None, None, None, None, True, 0, self.eps, True)
@@ -245,6 +395,13 @@ class BCNorm(nn.Module):
 class EstBN(nn.Module):
 
     def __init__(self, num_features):
+        """
+        Initialize the gradient.
+
+        Args:
+            self: (todo): write your description
+            num_features: (int): write your description
+        """
         super(EstBN, self).__init__()
         self.num_features = num_features
         self.weight = Parameter(torch.ones(num_features))
@@ -255,6 +412,13 @@ class EstBN(nn.Module):
         self.register_buffer('estbn_moving_speed', torch.zeros(1))
 
     def forward(self, inp):
+        """
+        Calculate forward computation.
+
+        Args:
+            self: (todo): write your description
+            inp: (todo): write your description
+        """
         ms = self.estbn_moving_speed.item()
         if self.training:
             with torch.no_grad():
@@ -274,6 +438,27 @@ class EstBN(nn.Module):
 # Taken and modified from https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/models.py
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, activation, bn=True, bias=False, dropblock=False, sam=False, eca=False, ws=False, coord=False, hard_mish=False, bcn=False, mbn=False):
+        """
+        Initialize the module.
+
+        Args:
+            self: (todo): write your description
+            in_channels: (int): write your description
+            out_channels: (int): write your description
+            kernel_size: (int): write your description
+            stride: (int): write your description
+            activation: (str): write your description
+            bn: (int): write your description
+            bias: (float): write your description
+            dropblock: (todo): write your description
+            sam: (todo): write your description
+            eca: (todo): write your description
+            ws: (int): write your description
+            coord: (array): write your description
+            hard_mish: (str): write your description
+            bcn: (todo): write your description
+            mbn: (str): write your description
+        """
         super().__init__()
 
         # PADDING is (ks-1)/2
@@ -321,6 +506,13 @@ class ConvBlock(nn.Module):
         self.module = nn.Sequential(*modules)
 
     def forward(self, x):
+        """
+        Forward function.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         y = self.module(x)
         return y
 
@@ -337,6 +529,23 @@ class ResBlock(nn.Module):
     """
     # Creating few conv blocks. One with kernel 3, second with kernel 1. With residual skip connection
     def __init__(self, ch, nblocks=1, shortcut=True, dropblock=True, sam=False, eca=False, ws=False, coord=False, hard_mish=False, bcn=False, mbn=False):
+        """
+        Initialize the module.
+
+        Args:
+            self: (todo): write your description
+            ch: (todo): write your description
+            nblocks: (bool): write your description
+            shortcut: (todo): write your description
+            dropblock: (todo): write your description
+            sam: (todo): write your description
+            eca: (todo): write your description
+            ws: (int): write your description
+            coord: (array): write your description
+            hard_mish: (str): write your description
+            bcn: (todo): write your description
+            mbn: (str): write your description
+        """
         super().__init__()
         self.shortcut = shortcut
         self.module_list = nn.ModuleList()
@@ -353,6 +562,13 @@ class ResBlock(nn.Module):
             self.use_dropblock = False
 
     def forward(self, x):
+        """
+        Perform module forward.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         for module in self.module_list:
             h = x
             for res in module:
@@ -372,6 +588,21 @@ class DownSampleFirst(nn.Module):
         in_channels (int): Amount of channels to input, if you use RGB, it should be 3
     """
     def __init__(self, in_channels=3, dropblock=True, sam=False, eca=False, ws=False, coord=False, hard_mish=False, bcn=False, mbn=False):
+        """
+        Initialize output blocks.
+
+        Args:
+            self: (todo): write your description
+            in_channels: (int): write your description
+            dropblock: (todo): write your description
+            sam: (todo): write your description
+            eca: (todo): write your description
+            ws: (int): write your description
+            coord: (array): write your description
+            hard_mish: (str): write your description
+            bcn: (todo): write your description
+            mbn: (str): write your description
+        """
         super().__init__()
 
         self.c1 = ConvBlock(in_channels, 32, 3, 1, "mish", dropblock=dropblock, sam=sam, eca=eca, ws=ws, coord=coord, hard_mish=hard_mish, bcn=bcn, mbn=mbn)
@@ -387,6 +618,13 @@ class DownSampleFirst(nn.Module):
         self.c7 = ConvBlock(128, 64, 1, 1, "mish", dropblock=dropblock, sam=sam, eca=eca, ws=ws, coord=False, hard_mish=hard_mish)
 
     def forward(self, x):
+        """
+        Perform forward forward.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         x1 = self.c1(x)
         x2 = self.c2(x1)
         x3 = self.c3(x2)
@@ -402,6 +640,23 @@ class DownSampleFirst(nn.Module):
 
 class DownSampleBlock(nn.Module):
     def __init__(self, in_c, out_c, nblocks=2, dropblock=True, sam=False, eca=False, ws=False, coord=False, hard_mish=False, bcn=False, mbn=False):
+        """
+        Initialize c2c4.
+
+        Args:
+            self: (todo): write your description
+            in_c: (int): write your description
+            out_c: (str): write your description
+            nblocks: (bool): write your description
+            dropblock: (todo): write your description
+            sam: (todo): write your description
+            eca: (todo): write your description
+            ws: (int): write your description
+            coord: (array): write your description
+            hard_mish: (str): write your description
+            bcn: (todo): write your description
+            mbn: (str): write your description
+        """
         super().__init__()
 
         self.c1 = ConvBlock(in_c, out_c, 3, 2, "mish", dropblock=dropblock, sam=sam, eca=eca, ws=ws, coord=coord, hard_mish=hard_mish, bcn=bcn, mbn=mbn)
@@ -415,6 +670,13 @@ class DownSampleBlock(nn.Module):
         self.c5 = ConvBlock(out_c, out_c, 1, 1, "mish", dropblock=dropblock, sam=sam, eca=eca, ws=ws, coord=False, hard_mish=hard_mish, bcn=bcn, mbn=mbn)
 
     def forward(self, x):
+        """
+        Perform forward forward.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         x1 = self.c1(x)
         x2 = self.c2(x1)
         x3 = self.r3(x2)
@@ -428,6 +690,21 @@ class DownSampleBlock(nn.Module):
 
 class Backbone(nn.Module):
     def __init__(self, in_channels, dropblock=True, sam=False, eca=False, ws=False, coord=False, hard_mish=False, bcn=False, mbn=False):
+        """
+        Initialize output.
+
+        Args:
+            self: (todo): write your description
+            in_channels: (int): write your description
+            dropblock: (todo): write your description
+            sam: (todo): write your description
+            eca: (todo): write your description
+            ws: (int): write your description
+            coord: (array): write your description
+            hard_mish: (str): write your description
+            bcn: (todo): write your description
+            mbn: (str): write your description
+        """
         super().__init__()
 
         self.d1 = DownSampleFirst(in_channels=in_channels, dropblock=dropblock, sam=sam, eca=eca, ws=ws, coord=coord, hard_mish=hard_mish, bcn=bcn, mbn=mbn)
@@ -437,6 +714,13 @@ class Backbone(nn.Module):
         self.d5 = DownSampleBlock(512, 1024, nblocks=4, dropblock=dropblock, sam=sam, eca=eca, ws=ws, coord=coord, hard_mish=hard_mish, bcn=bcn, mbn=mbn)
 
     def forward(self, x):
+        """
+        Perform of the forward.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         x1 = self.d1(x)
         x2 = self.d2(x1)
         x3 = self.d3(x2)
@@ -447,6 +731,21 @@ class Backbone(nn.Module):
 
 class PAN_Layer(nn.Module):
     def __init__(self, in_channels, dropblock=True, sam=False, eca=False, ws=False, coord=False, hard_mish=False, bcn=False, mbn=False):
+        """
+        Initialize c2.
+
+        Args:
+            self: (todo): write your description
+            in_channels: (int): write your description
+            dropblock: (todo): write your description
+            sam: (todo): write your description
+            eca: (todo): write your description
+            ws: (int): write your description
+            coord: (array): write your description
+            hard_mish: (str): write your description
+            bcn: (todo): write your description
+            mbn: (str): write your description
+        """
         super().__init__()
 
         in_c = in_channels
@@ -464,6 +763,14 @@ class PAN_Layer(nn.Module):
         self.c7 = ConvBlock(in_c, out_c, 1, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=ws, coord=False, hard_mish=hard_mish, bcn=bcn, mbn=mbn)
 
     def forward(self, x_to_upsample, x_upsampled):
+        """
+        Perform forward forward forward.
+
+        Args:
+            self: (todo): write your description
+            x_to_upsample: (todo): write your description
+            x_upsampled: (todo): write your description
+        """
         x1 = self.c1(x_to_upsample)
         x2_1 = self.u2(x1)
         x2_2 = self.c2_from_upsampled(x_upsampled)
@@ -479,6 +786,17 @@ class PAN_Layer(nn.Module):
 #Taken and modified from https://github.com/ruinmessi/ASFF/blob/0ff0e3393675583f7da65a7b443ea467e1eaed65/models/network_blocks.py#L267-L330
 class ASFF(nn.Module):
     def __init__(self, level, rfb=False, vis=False, bcn=False, mbn=False):
+        """
+        Initialize the level
+
+        Args:
+            self: (todo): write your description
+            level: (int): write your description
+            rfb: (int): write your description
+            vis: (int): write your description
+            bcn: (todo): write your description
+            mbn: (str): write your description
+        """
         super(ASFF, self).__init__()
         self.level = level
         self.dim = [512, 256, 128]
@@ -506,6 +824,15 @@ class ASFF(nn.Module):
 
 
     def forward(self, x_level_0, x_level_1, x_level_2):
+        """
+        Forward computation.
+
+        Args:
+            self: (todo): write your description
+            x_level_0: (todo): write your description
+            x_level_1: (todo): write your description
+            x_level_2: (todo): write your description
+        """
         if self.level==0:
             level_0_resized = x_level_0 # 512 -> 512
             level_1_resized = self.stride_level_1(x_level_1) # 256 -> 512
@@ -544,6 +871,17 @@ class ASFF(nn.Module):
 #Author: Vadims Casecnikovs creator of this repository
 class ACFF(nn.Module):
     def __init__(self, level, rfb=False, vis=False, bcn=False, mbn=False):
+        """
+        Initialize the level
+
+        Args:
+            self: (todo): write your description
+            level: (int): write your description
+            rfb: (int): write your description
+            vis: (int): write your description
+            bcn: (todo): write your description
+            mbn: (str): write your description
+        """
         super(ACFF, self).__init__()
         self.level = level
         self.dim = [512, 256, 128]
@@ -569,6 +907,15 @@ class ACFF(nn.Module):
 
 
     def forward(self, x_level_0, x_level_1, x_level_2):
+        """
+        Forward computation.
+
+        Args:
+            self: (todo): write your description
+            x_level_0: (todo): write your description
+            x_level_1: (todo): write your description
+            x_level_2: (todo): write your description
+        """
         #In this part we are trying to construct the same channel features as in target level
         if self.level==0:
             level_0_resized = x_level_0 # 512 -> 512
@@ -615,6 +962,24 @@ class ACFF(nn.Module):
 
 class Neck(nn.Module):
     def __init__(self, spp_kernels=(5, 9, 13), PAN_layers=[512, 256], dropblock=True, sam=False, eca=False, ws=False, coord=False, hard_mish=False, asff=False, acff=False, bcn=False, mbn=False):
+        """
+        Initialize kernels dataset.
+
+        Args:
+            self: (todo): write your description
+            spp_kernels: (str): write your description
+            PAN_layers: (list): write your description
+            dropblock: (todo): write your description
+            sam: (todo): write your description
+            eca: (todo): write your description
+            ws: (int): write your description
+            coord: (array): write your description
+            hard_mish: (str): write your description
+            asff: (str): write your description
+            acff: (bool): write your description
+            bcn: (todo): write your description
+            mbn: (str): write your description
+        """
         super().__init__()
         assert not(asff and acff)
         self.asff = asff
@@ -647,6 +1012,13 @@ class Neck(nn.Module):
             self.ACFF_2 = ACFF(2)
 
     def forward(self, input):
+        """
+        Perform forward operation.
+
+        Args:
+            self: (todo): write your description
+            input: (todo): write your description
+        """
         d5, d4, d3 = input
 
         x1 = self.c1(d5)
@@ -684,6 +1056,21 @@ class Neck(nn.Module):
 
 class HeadPreprocessing(nn.Module):
     def __init__(self, in_channels, dropblock=True, sam=False, eca=False, ws=False, coord=False, hard_mish=False, bcn=False, mbn=False):
+        """
+        Initialize a channel.
+
+        Args:
+            self: (todo): write your description
+            in_channels: (int): write your description
+            dropblock: (todo): write your description
+            sam: (todo): write your description
+            eca: (todo): write your description
+            ws: (int): write your description
+            coord: (array): write your description
+            hard_mish: (str): write your description
+            bcn: (todo): write your description
+            mbn: (str): write your description
+        """
         super().__init__()
         ic = in_channels
         self.c1 = ConvBlock(ic, ic*2, 3, 2, 'leaky', dropblock=dropblock, sam=sam, eca=eca, ws=ws, coord=coord, hard_mish=hard_mish, bcn=bcn, mbn=mbn)
@@ -694,6 +1081,14 @@ class HeadPreprocessing(nn.Module):
         self.c6 = ConvBlock(ic*4, ic*2, 1, 1, 'leaky', dropblock=dropblock, sam=sam, eca=eca, ws=ws, coord=False, hard_mish=hard_mish, bcn=bcn, mbn=mbn)
 
     def forward(self, input, input_prev):
+        """
+        Perform forward computation.
+
+        Args:
+            self: (todo): write your description
+            input: (todo): write your description
+            input_prev: (todo): write your description
+        """
         x1 = self.c1(input_prev)
         x1 = torch.cat([x1, input], dim=1)
         x2 = self.c2(x1)
@@ -707,11 +1102,34 @@ class HeadPreprocessing(nn.Module):
 
 class HeadOutput(nn.Module):
     def __init__(self, in_channels, out_channels, dropblock=True, sam=False, eca=False, ws=False, coord=False, hard_mish=False, bcn=False, mbn=False):
+        """
+        Initialize a channel.
+
+        Args:
+            self: (todo): write your description
+            in_channels: (int): write your description
+            out_channels: (int): write your description
+            dropblock: (todo): write your description
+            sam: (todo): write your description
+            eca: (todo): write your description
+            ws: (int): write your description
+            coord: (array): write your description
+            hard_mish: (str): write your description
+            bcn: (todo): write your description
+            mbn: (str): write your description
+        """
         super().__init__()
         self.c1 = ConvBlock(in_channels, in_channels*2, 3, 1, "leaky", dropblock=False, sam=sam, eca=eca, ws=False, coord=coord, hard_mish=hard_mish, bcn=bcn, mbn=mbn)
         self.c2 = ConvBlock(in_channels*2, out_channels, 1, 1, "linear", bn=False, bias=True, dropblock=False, sam=False, eca=False, ws=False, coord=False, hard_mish=hard_mish, bcn=bcn, mbn=mbn)
 
     def forward(self, x):
+        """
+        Calculate of x1 and x1.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+        """
         x1 = self.c1(x)
         x2 = self.c2(x1)
         return x2
@@ -719,6 +1137,21 @@ class HeadOutput(nn.Module):
 
 class Head(nn.Module):
     def __init__(self, output_ch, dropblock=True, sam=False, eca=False, ws=False, coord=False, hard_mish=False, bcn=False, mbn=False):
+        """
+        Initialize output.
+
+        Args:
+            self: (todo): write your description
+            output_ch: (str): write your description
+            dropblock: (todo): write your description
+            sam: (todo): write your description
+            eca: (todo): write your description
+            ws: (int): write your description
+            coord: (array): write your description
+            hard_mish: (str): write your description
+            bcn: (todo): write your description
+            mbn: (str): write your description
+        """
         super().__init__()
 
         self.ho1 = HeadOutput(128, output_ch, dropblock=dropblock, sam=sam, eca=eca, ws=ws, coord=coord, hard_mish=hard_mish, bcn=bcn, mbn=mbn)
@@ -730,6 +1163,13 @@ class Head(nn.Module):
         self.ho3 = HeadOutput(512, output_ch, dropblock=dropblock, sam=sam, eca=eca, ws=ws, coord=coord, hard_mish=hard_mish, bcn=bcn, mbn=mbn)
 
     def forward(self, input):
+        """
+        Perform forward forward forward.
+
+        Args:
+            self: (todo): write your description
+            input: (todo): write your description
+        """
         input1, input2, input3 = input
 
         x1 = self.ho1(input1)
@@ -746,6 +1186,18 @@ class YOLOLayer(nn.Module):
     """Detection layer taken and modified from https://github.com/eriklindernoren/PyTorch-YOLOv3"""
 
     def __init__(self, anchors, num_classes, img_dim=608, grid_size=None, iou_aware=False, repulsion_loss=False):
+        """
+        Initialize the loss.
+
+        Args:
+            self: (todo): write your description
+            anchors: (todo): write your description
+            num_classes: (int): write your description
+            img_dim: (int): write your description
+            grid_size: (int): write your description
+            iou_aware: (todo): write your description
+            repulsion_loss: (str): write your description
+        """
         super(YOLOLayer, self).__init__()
         self.anchors = anchors
         self.num_anchors = len(anchors)
@@ -765,6 +1217,14 @@ class YOLOLayer(nn.Module):
         self.repulsion_loss = repulsion_loss
 
     def compute_grid_offsets(self, grid_size, cuda=True):
+        """
+        Compute the grid grid offsets.
+
+        Args:
+            self: (todo): write your description
+            grid_size: (int): write your description
+            cuda: (todo): write your description
+        """
         self.grid_size = grid_size
         g = self.grid_size
         FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
@@ -777,6 +1237,17 @@ class YOLOLayer(nn.Module):
         self.anchor_h = self.scaled_anchors[:, 1:2].view((1, self.num_anchors, 1, 1))
 
     def build_targets(self, pred_boxes, pred_cls, target, anchors, ignore_thres):
+        """
+        Builds the targets for the tensor.
+
+        Args:
+            self: (todo): write your description
+            pred_boxes: (todo): write your description
+            pred_cls: (str): write your description
+            target: (todo): write your description
+            anchors: (todo): write your description
+            ignore_thres: (bool): write your description
+        """
 
         ByteTensor = torch.cuda.BoolTensor if pred_boxes.is_cuda else torch.BoolTensor
         FloatTensor = torch.cuda.FloatTensor if pred_boxes.is_cuda else torch.FloatTensor
@@ -847,6 +1318,14 @@ class YOLOLayer(nn.Module):
         return iou, class_mask, obj_mask, noobj_mask, tx, ty, tw, th, tcls, tconf, target_boxes_grid
 
     def bbox_wh_iou(self, wh1, wh2):
+        """
+        Returns the intersection of two boxes.
+
+        Args:
+            self: (todo): write your description
+            wh1: (todo): write your description
+            wh2: (todo): write your description
+        """
         wh2 = wh2.t()
         w1, h1 = wh1[0], wh1[1]
         w2, h2 = wh2[0], wh2[1]
@@ -894,6 +1373,14 @@ class YOLOLayer(nn.Module):
 
 
     def smallestenclosing(self, pred_boxes, target_boxes):
+        """
+        Calculate the smallest boxes.
+
+        Args:
+            self: (todo): write your description
+            pred_boxes: (todo): write your description
+            target_boxes: (todo): write your description
+        """
         # Calculating smallest enclosing
         targetxc = target_boxes[..., 0]
         targetyc = target_boxes[..., 1]
@@ -913,6 +1400,13 @@ class YOLOLayer(nn.Module):
         return xc1, yc1, xc2, yc2
 
     def xywh2xyxy(self, x):
+        """
+        Convert 2d 2d numpy. numpy. ndarray of 2d ndarrays to 2d 2darray.
+
+        Args:
+            self: (todo): write your description
+            x: (int): write your description
+        """
         # Convert bounding box format from [x, y, w, h] to [x1, y1, x2, y2]
         y = torch.zeros_like(x) if isinstance(x, torch.Tensor) else np.zeros_like(x)
         y[:, 0] = x[:, 0] - x[:, 2] / 2
@@ -922,6 +1416,14 @@ class YOLOLayer(nn.Module):
         return y
 
     def iou_all_to_all(self, a, b):
+        """
+        Convert a iouchch ) to a b.
+
+        Args:
+            self: (todo): write your description
+            a: (array): write your description
+            b: (array): write your description
+        """
         #Calculates intersection over union area for each a bounding box with each b bounding box
         area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
 
@@ -942,6 +1444,14 @@ class YOLOLayer(nn.Module):
         return IoU
 
     def smooth_ln(self, x, smooth =0.5):
+        """
+        Smooth log - 1 ].
+
+        Args:
+            self: (todo): write your description
+            x: (int): write your description
+            smooth: (todo): write your description
+        """
         return torch.where(
             torch.le(x, smooth),
             -torch.log(1 - x),
@@ -949,6 +1459,14 @@ class YOLOLayer(nn.Module):
         )
 
     def iog(self, ground_truth, prediction):
+        """
+        Compute the prediction
+
+        Args:
+            self: (todo): write your description
+            ground_truth: (array): write your description
+            prediction: (array): write your description
+        """
 
         inter_xmin = torch.max(ground_truth[:, 0], prediction[:, 0])
         inter_ymin = torch.max(ground_truth[:, 1], prediction[:, 1])
@@ -961,6 +1479,14 @@ class YOLOLayer(nn.Module):
         return I / G
 
     def calculate_repullsion(self, y, y_hat):
+        """
+        Calculate the empirical from target.
+
+        Args:
+            self: (todo): write your description
+            y: (todo): write your description
+            y_hat: (todo): write your description
+        """
         batch_size = y_hat.shape[0]
         RepGTS = []
         RepBoxes = []
@@ -988,6 +1514,14 @@ class YOLOLayer(nn.Module):
         return torch.stack(RepGTS).mean(), torch.stack(RepBoxes).mean()
 
     def forward(self, x, targets=None):
+        """
+        Forward computation.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+            targets: (todo): write your description
+        """
         # Tensors for cuda support
         FloatTensor = torch.cuda.FloatTensor if x.is_cuda else torch.FloatTensor
 
@@ -1099,6 +1633,30 @@ class YOLOLayer(nn.Module):
 
 class YOLOv4(nn.Module):
     def __init__(self, in_channels=3, n_classes=80, weights_path=None, pretrained=False, img_dim=608, anchors=None, dropblock=True, sam=False, eca=False, ws=False, iou_aware=False, coord=False, hard_mish=False, asff=False, repulsion_loss=False, acff=False, bcn=False, mbn=False):
+        """
+        Initialize the graph.
+
+        Args:
+            self: (todo): write your description
+            in_channels: (int): write your description
+            n_classes: (todo): write your description
+            weights_path: (str): write your description
+            pretrained: (bool): write your description
+            img_dim: (int): write your description
+            anchors: (todo): write your description
+            dropblock: (todo): write your description
+            sam: (todo): write your description
+            eca: (todo): write your description
+            ws: (int): write your description
+            iou_aware: (todo): write your description
+            coord: (array): write your description
+            hard_mish: (str): write your description
+            asff: (str): write your description
+            repulsion_loss: (str): write your description
+            acff: (bool): write your description
+            bcn: (todo): write your description
+            mbn: (str): write your description
+        """
         super().__init__()
         if anchors is None:
             anchors = [[[10, 13], [16, 30], [33, 23]],
@@ -1133,6 +1691,14 @@ class YOLOv4(nn.Module):
                 print(f'[Warning] Ignoring {e}')
 
     def forward(self, x, y=None):
+        """
+        Forward computation.
+
+        Args:
+            self: (todo): write your description
+            x: (todo): write your description
+            y: (todo): write your description
+        """
         b = self.backbone(x)
         n = self.neck(b)
         h = self.head(n)
