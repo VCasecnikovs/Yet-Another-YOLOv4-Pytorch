@@ -799,6 +799,12 @@ class YOLOLayer(nn.Module):
 
         target_boxes_grid = FloatTensor(nB, nA, nG, nG, 4).fill_(0)
 
+        #If target is zero, then return
+        if target.shape[0] == 0:
+            tconf = obj_mask.float()
+            # print(iou, class_mask, obj_mask, noobj_mask, tx, ty, tw, th, tcls, tconf, target_boxes_grid)
+            return iou, class_mask, obj_mask, noobj_mask, tx, ty, tw, th, tcls, tconf, target_boxes_grid
+
         # 2 3 xy
         # 4 5 wh
         # Convert to position relative to box
@@ -1066,12 +1072,17 @@ class YOLOLayer(nn.Module):
 
         CIoUloss = (1 - iou_masked + rDIoU + alpha * v).sum(0)/num_samples
         # print(torch.isnan(pred_conf).sum())
-        loss_conf_obj = F.binary_cross_entropy(pred_conf[obj_mask], tconf[obj_mask])
+
         loss_conf_noobj = F.binary_cross_entropy(pred_conf[noobj_mask], tconf[noobj_mask])
+
+        if targets.shape[0] == 0:
+            loss_conf_obj = 0.
+            loss_cls = 0.
+        else:
+            loss_conf_obj = F.binary_cross_entropy(pred_conf[obj_mask], tconf[obj_mask])
+            loss_cls = F.binary_cross_entropy(input=pred_cls[obj_mask], target=tcls[obj_mask])
+
         loss_conf = self.obj_scale * loss_conf_obj + self.noobj_scale * loss_conf_noobj
-
-        loss_cls = F.binary_cross_entropy(input=pred_cls[obj_mask], target=tcls[obj_mask])
-
         total_loss = CIoUloss + loss_cls + loss_conf
 
         if self.iou_aware:
