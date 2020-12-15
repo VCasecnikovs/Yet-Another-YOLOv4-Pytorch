@@ -78,10 +78,12 @@ or you can download weights using from this link: https://drive.google.com/open?
     d = dataset.ListDataset("train.txt", img_dir='images', labels_dir='labels', img_extensions=['.JPG'], train=True)
 	path, img, bboxes = d[0]
 
-"train.txt" is file which consists filepaths to image (images\primula\DSC02542.JPG)
+!!! You can use SplitDataset.ipynb to create train.txt and valid.txt
+
+"train.txt" is file which consists with filepaths to image (images\primula\DSC02542.JPG)
 
 img_dir - Folder with images
-labels_dir - Folder with txt files for annotion
+labels_dir - Folder with txt files for annotation
 img_extensions - extensions if images
 
 If you set train=False -> uses letterboxes
