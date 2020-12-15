@@ -19,10 +19,10 @@ class YOLOv4PL(pl.LightningModule):
 
         self.hparams = hparams
 
-        self.train_ds = ListDataset(hparams.train_ds, train=True)
-        self.valid_ds = ListDataset(hparams.valid_ds, train=False)
+        self.train_ds = ListDataset(hparams.train_ds, train=True, img_extensions=hparams.img_extensions)
+        self.valid_ds = ListDataset(hparams.valid_ds, train=False, img_extensions=hparams.img_extensions)
 
-        self.model = YOLOv4(n_classes=5,
+        self.model = YOLOv4(n_classes=hparams.n_classes,
             pretrained=hparams.pretrained,
             dropblock=hparams.Dropblock,
             sam=hparams.SAM,

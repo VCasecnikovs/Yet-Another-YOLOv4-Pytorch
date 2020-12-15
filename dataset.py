@@ -19,6 +19,7 @@ class ListDataset(Dataset):
             path = path.replace(img_dir, labels_dir)
             for ext in img_extensions:
                 path = path.replace(ext, ".txt")
+
             self.label_files.append(path)
 
         self.img_size = img_size
@@ -47,7 +48,9 @@ class ListDataset(Dataset):
 
         if os.path.exists(label_path):
             boxes = torch.from_numpy(np.loadtxt(label_path).reshape(-1, 5))
-
+        else:
+            print(label_path)
+        
         # RESIZING
         if width > height:
             ratio = height/width
