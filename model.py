@@ -993,7 +993,7 @@ class YOLOLayer(nn.Module):
             RepBoxes.append(RepBox)
         return torch.stack(RepGTS).mean(), torch.stack(RepBoxes).mean()
 
-    def forward(self, x, targets=None):
+    def forward(self, x : torch.Tensor, targets=None):
         # Tensors for cuda support
         FloatTensor = torch.cuda.FloatTensor if x.is_cuda else torch.FloatTensor
 
@@ -1070,7 +1070,10 @@ class YOLOLayer(nn.Module):
             S = 1 - iou_masked
             alpha = v / (S + v + 1e-7)
 
-        CIoUloss = (1 - iou_masked + rDIoU + alpha * v).sum(0)/num_samples
+        if num_samples != 0:
+            CIoUloss = (1 - iou_masked + rDIoU + alpha * v).sum(0)/num_samples
+        else:
+            CIoUloss = 0
         # print(torch.isnan(pred_conf).sum())
 
         loss_conf_noobj = F.binary_cross_entropy(pred_conf[noobj_mask], tconf[noobj_mask])
