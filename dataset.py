@@ -10,7 +10,7 @@ import random
 
 
 class ListDataset(Dataset):
-    def __init__(self, list_path, img_dir="images", labels_dir="labels",  img_extensions=[".JPG"], img_size=608, train=True, bbox_minsize=0.01, brightness_range=0.25, contrast_range=0.25, hue_range=0.05, saturation_range=0.25, cross_offset=0.2):
+    def __init__(self, list_path, img_dir="images", labels_dir="labels",  img_extensions=[".jpg"], img_size=608, train=True, bbox_minsize=0.01, brightness_range=0.25, contrast_range=0.25, hue_range=0.05, saturation_range=0.25, cross_offset=0.2):
         with open(list_path, "r") as file:
             self.img_files = file.read().splitlines()
 
