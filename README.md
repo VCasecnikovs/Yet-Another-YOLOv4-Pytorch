@@ -1,6 +1,8 @@
 # Yet-Another-YOLOv4-Pytorch
 ![](github_imgs/from_net.png)
 
+!!! For the jupyter notebook please install pytorch-lightning version 0.7.6
+
 This is implementation of YOLOv4 object detection neural network on pytorch. I'll try to implement all features of original paper.
 
  - [x] Model
